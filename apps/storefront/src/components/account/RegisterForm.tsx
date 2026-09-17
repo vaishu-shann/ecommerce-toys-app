@@ -8,8 +8,8 @@ import { assessPassword } from '@romp/core';
 import { Button, Field } from '@romp/ui';
 
 import { AccountApiError, accountApi } from '@/lib/account-api';
-import { signInWithIdentifier } from '@/lib/firebase-client';
-import { brand, locale } from '@/lib/store';
+import { signInWithLoginEmail } from '@/lib/firebase-client';
+import { brand } from '@/lib/store';
 
 /**
  * The customer registration form.
@@ -39,20 +39,13 @@ export function RegisterForm() {
     setError(null);
     void accountApi
       .register({ identifier, password, displayName })
-      .then(() =>
-        signInWithIdentifier(identifier, password, {
-          storeId: brand.id,
-          defaultRegion: locale.defaultPhoneRegion,
-        }),
-      )
+      .then((created) => signInWithLoginEmail(created.loginEmail, password))
       .then(() => {
         router.push('/account');
         router.refresh();
       })
       .catch((cause: unknown) => {
-        setError(
-          cause instanceof AccountApiError ? cause.message : 'We could not create your account.',
-        );
+        setError(registerFailureMessage(cause));
       })
       .finally(() => {
         setPending(false);
@@ -60,10 +53,18 @@ export function RegisterForm() {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4" aria-labelledby="register-heading">
-      <h1 id="register-heading" className="font-display text-2xl text-text-primary">
-        Create an account
-      </h1>
+    <form onSubmit={submit} className="flex flex-col gap-6" aria-labelledby="register-heading">
+      <header className="flex flex-col gap-2">
+        <p className="font-body text-[11px] font-extrabold tracking-[0.18em] text-primary uppercase">
+          Join the play
+        </p>
+        <h1
+          id="register-heading"
+          className="font-display text-4xl leading-none tracking-tight text-text-primary uppercase"
+        >
+          Create an account
+        </h1>
+      </header>
 
       <Field
         label="Your name"
@@ -74,6 +75,7 @@ export function RegisterForm() {
           setDisplayName(event.target.value);
         }}
         required
+        inputClassName="auth-input"
       />
       <Field
         label="Email or mobile number"
@@ -84,6 +86,7 @@ export function RegisterForm() {
           setIdentifier(event.target.value);
         }}
         required
+        inputClassName="auth-input"
       />
       <Field
         label="Password"
@@ -94,24 +97,33 @@ export function RegisterForm() {
           setPassword(event.target.value);
         }}
         required
+        inputClassName="auth-input"
         {...(weak && assessment.suggestions.length > 0 ? { error: assessment.suggestions[0] } : {})}
       />
 
-      {assessment !== null ? <PasswordStrength score={assessment.score} ok={assessment.ok} /> : null}
-
       {error !== null ? (
-        <p role="alert" className="font-body text-sm text-danger">
+        <p role="alert" className="-mt-1 font-body text-sm text-danger">
           {error}
         </p>
       ) : null}
 
-      <Button type="submit" loading={pending} disabled={pending || weak}>
+      <Button
+        type="submit"
+        loading={pending}
+        disabled={pending || weak}
+        fullWidth
+        size="lg"
+        className="auth-submit"
+      >
         Create account
       </Button>
 
-      <p className="font-body text-sm text-text-muted">
+      <p className="text-center font-body text-sm text-text-muted">
         Already have an account?{' '}
-        <Link href="/account/sign-in" className="text-accent underline">
+        <Link
+          href="/account/sign-in"
+          className="font-semibold text-primary underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>
@@ -120,33 +132,46 @@ export function RegisterForm() {
 }
 
 /**
- * A four-segment password-strength meter driven by the zxcvbn score `assessPassword` returns.
+ * Turns a register/sign-in failure into copy the customer can act on.
  *
- * The bar is decorative (`aria-hidden`); the meaning is carried by an `aria-live` line so a
- * screen-reader user hears "Weak" / "Strong" as they type, not a description of coloured
- * rectangles. Colour alone never conveys the state — the word does. The strength floor is a
- * score of 3, so 3–4 read as acceptable (success) and 0–2 as not yet (warning).
+ * `instanceof AccountApiError` is unreliable across Next hot reloads (the class identity
+ * changes), so the API error is recognised by shape. A Firebase Auth failure after a 201
+ * means the account exists — send them to sign in rather than a dead generic line.
  */
-function PasswordStrength({ score, ok }: { readonly score: number; readonly ok: boolean }) {
-  const labels = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'] as const;
-  const label = labels[Math.min(score, 4)] ?? labels[0];
-  const filled = Math.max(1, Math.min(score + 1, 4));
+function registerFailureMessage(cause: unknown): string {
+  if (isAccountApiFailure(cause)) return cause.message;
 
+  const code = firebaseAuthCode(cause);
+  if (code === 'auth/email-already-in-use' || code === 'auth/email-already-exists') {
+    return 'That email or mobile number is already registered.';
+  }
+  if (
+    code === 'auth/network-request-failed' ||
+    code === 'auth/invalid-api-key' ||
+    code === 'auth/configuration-not-found'
+  ) {
+    return 'Could not reach sign-in. Check the local emulators are running, then try Sign in.';
+  }
+  if (code !== null && code.startsWith('auth/')) {
+    return 'Your account was created but sign-in did not finish. Open Sign in and use the same email and password.';
+  }
+
+  return 'We could not create your account.';
+}
+
+function isAccountApiFailure(cause: unknown): cause is { readonly message: string } {
+  if (typeof cause !== 'object' || cause === null) return false;
+  const record = cause as { name?: unknown; status?: unknown; code?: unknown; message?: unknown };
+  if (typeof record.message !== 'string' || record.message === '') return false;
   return (
-    <div className="flex flex-col gap-1">
-      <div aria-hidden="true" className="flex gap-1">
-        {[0, 1, 2, 3].map((index) => (
-          <span
-            key={index}
-            className={`h-1.5 flex-1 rounded-pill ${
-              index < filled ? (ok ? 'bg-success' : 'bg-warning') : 'bg-surface-alt'
-            }`}
-          />
-        ))}
-      </div>
-      <p aria-live="polite" className="font-body text-xs text-text-muted">
-        Password strength: <span className={ok ? 'text-success' : 'text-warning'}>{label}</span>
-      </p>
-    </div>
+    cause instanceof AccountApiError ||
+    record.name === 'AccountApiError' ||
+    (typeof record.status === 'number' && typeof record.code === 'string')
   );
+}
+
+function firebaseAuthCode(cause: unknown): string | null {
+  if (typeof cause !== 'object' || cause === null) return null;
+  const code = (cause as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
 }

@@ -29,6 +29,12 @@ export const HomeContentSchema = z.object({
     subcopy: z.string().min(1).max(300),
     cta: CtaSchema,
   }),
+  /** Coral sale panel on the home hero. Same shape as `promo` so a store can advertise a campaign. */
+  sale: z.object({
+    headline: z.string().min(1).max(80),
+    subcopy: z.string().min(1).max(160),
+    cta: CtaSchema,
+  }),
   trustBadges: z
     .array(
       z.object({
@@ -41,6 +47,16 @@ export const HomeContentSchema = z.object({
   ageSectionTitle: z.string().min(1).max(120),
   featuredTitle: z.string().min(1).max(120),
   categorySectionTitle: z.string().min(1).max(120),
+});
+
+/**
+ * Copy for the unfiltered catalogue page (`/listing`).
+ *
+ * The heading is brand voice ("All toys" vs "All products"); filter chrome like
+ * "Sort" and "Clear all" stays in the component, the same as "Search".
+ */
+export const ListingContentSchema = z.object({
+  title: z.string().min(1).max(80),
 });
 
 /**
@@ -237,6 +253,7 @@ export const PoliciesSchema = z.object({
 export const ContentSchema = z.object({
   home: HomeContentSchema,
   product: ProductContentSchema,
+  listing: ListingContentSchema,
   ageBands: AgeBandsSchema,
   categories: CategoriesSchema,
   footer: FooterSchema,

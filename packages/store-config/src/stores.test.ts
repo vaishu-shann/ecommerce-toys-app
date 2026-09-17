@@ -105,6 +105,13 @@ describe('emitted tokens differ per store', () => {
     expect(templateCss).not.toContain('#d8fd4f');
   });
 
+  it('emits a light-mode override only for a store that defines one', () => {
+    expect(romp.theme.modes).toBeDefined();
+    expect(template.theme.modes).toBeDefined();
+    expect(rompCss).toContain("[data-theme='light']");
+    expect(templateCss).toContain("[data-theme='light']");
+  });
+
   it('carries the font stack of the store it was generated for', () => {
     expect(rompCss).toContain('"Archivo Black"');
     expect(templateCss).toContain('Fraunces');

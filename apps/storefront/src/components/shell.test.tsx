@@ -1,9 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import axe from 'axe-core';
 import { describe, expect, it } from 'vitest';
 
-import { brand, content, contact, features } from '@/lib/store';
+import { brand, content, contact, features, theme } from '@/lib/store';
 
 import { SiteFooter } from './SiteFooter';
 import { SiteHeader } from './SiteHeader';
@@ -39,12 +38,9 @@ describe('Wordmark', () => {
     expect(screen.getByRole('link', { name: `${brand.name} — home` })).toHaveAttribute('href', '/');
   });
 
-  it('renders both theme variants of the artwork from public/brand', () => {
+  it('renders the configured artwork from public/brand', () => {
     render(<Wordmark />);
 
-    // Both the dark-surface and light-surface wordmarks are rendered; CSS shows the one
-    // matching the active theme (`.theme-dark-only` / `.theme-light-only`), so the ink always
-    // matches the surface. Both carry the store name as alt.
     const sources = screen.getAllByAltText(brand.name).map((image) => image.getAttribute('src'));
     expect(sources.some((src) => src?.includes('logo-dark.svg'))).toBe(true);
     expect(sources.some((src) => src?.includes('logo-light.svg'))).toBe(true);
@@ -64,23 +60,24 @@ describe('SiteHeader', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('builds its nav from Shop by age and All toys, not from categories', () => {
+  it('puts a single Explore link to the listing next to the wordmark', () => {
     render(<SiteHeader />);
 
-    const nav = screen.getByRole('navigation', { name: 'Shop' });
-    const links = [...nav.querySelectorAll('a')].map((link) => link.textContent);
+    const nav = screen.getByRole('navigation', { name: 'Explore' });
+    const links = [...nav.querySelectorAll('a')];
 
-    expect(links).toEqual(['Shop by age', 'All toys']);
-    expect(nav.querySelector('a[href="/#shop-by-age"]')).not.toBeNull();
-    expect(nav.querySelector('a[href="/c/all"]')).not.toBeNull();
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveTextContent('Explore');
+    expect(links[0]).toHaveAttribute('href', '/listing');
   });
 
-  it('does not put catalogue categories in the header', () => {
+  it('does not list category or age routes in the header', () => {
     render(<SiteHeader />);
-    const nav = screen.getByRole('navigation', { name: 'Shop' });
 
-    for (const category of content.categories) {
-      expect(nav.querySelector(`a[href="/c/${category.slug}"]`)).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Categories' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: content.home.hero.primaryCta.label })).not.toBeInTheDocument();
+    for (const category of content.categories.filter((item) => item.showInNav)) {
+      expect(screen.queryByRole('link', { name: category.name })).not.toBeInTheDocument();
     }
   });
 
@@ -94,14 +91,31 @@ describe('SiteHeader', () => {
   it('names every icon-only control', () => {
     render(<SiteHeader />);
 
-    for (const name of ['Menu']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument();
-    }
-    // The notification bell renders as a link to the account area while signed out (there
-    // is no client auth yet); it becomes a menu button once a uid is supplied.
-    for (const name of ['Your account', 'Your bag', 'Notifications']) {
+    for (const name of ['Your account', 'Your cart', 'Notifications']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
+    if (theme.modes !== undefined) {
+      expect(screen.getByRole('button', { name: /switch theme/iu })).toBeInTheDocument();
+    }
+  });
+
+  it('orders the account cluster as bell, wishlist, cart, profile, then colour mode', () => {
+    render(<SiteHeader />);
+
+    const cluster = document.querySelector('.header-actions');
+    expect(cluster).not.toBeNull();
+    const names = [...cluster!.querySelectorAll('a, button')].map((node) =>
+      (node.getAttribute('aria-label') ?? '').replace(/,.*/u, ''),
+    );
+
+    const expected = [
+      'Notifications',
+      ...(features.wishlist ? ['Saved toys'] : []),
+      'Your cart',
+      'Your account',
+      ...(theme.modes !== undefined ? ['Switch theme'] : []),
+    ];
+    expect(names).toEqual(expected);
   });
 
   it('respects the wishlist feature flag', () => {
@@ -113,57 +127,6 @@ describe('SiteHeader', () => {
     } else {
       expect(wishlist).not.toBeInTheDocument();
     }
-  });
-});
-
-describe('MobileNav', () => {
-  it('opens a labelled dialog listing shop links and age bands', async () => {
-    render(<SiteHeader />);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
-
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveAccessibleName('Browse');
-    expect(screen.getByRole('navigation', { name: 'Browse' })).toBeInTheDocument();
-
-    expect(within(dialog).getByRole('link', { name: 'Shop by age' })).toHaveAttribute(
-      'href',
-      '/#shop-by-age',
-    );
-    expect(within(dialog).getByRole('link', { name: 'All toys' })).toHaveAttribute(
-      'href',
-      '/c/all',
-    );
-
-    for (const band of content.ageBands) {
-      expect(screen.getByRole('link', { name: band.label })).toHaveAttribute(
-        'href',
-        `/age/${band.value}`,
-      );
-    }
-  });
-
-  it('reports its expanded state', async () => {
-    render(<SiteHeader />);
-    const trigger = screen.getByRole('button', { name: 'Menu' });
-
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(trigger);
-    expect(screen.getAllByRole('button', { name: 'Menu' })[0]).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
-  });
-
-  it('closes on Escape and returns focus to the trigger', async () => {
-    render(<SiteHeader />);
-    const trigger = screen.getByRole('button', { name: 'Menu' });
-
-    await userEvent.click(trigger);
-    await userEvent.keyboard('{Escape}');
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
   });
 });
 

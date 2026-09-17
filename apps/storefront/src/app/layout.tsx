@@ -5,6 +5,7 @@ import { SkipLink, ThemeProvider, themeInitScript } from '@romp/ui';
 import './globals.css';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
+import { StoreShell } from '@/components/StoreShell';
 import { fontClassName } from '@/generated/fonts';
 import { AuthProvider } from '@/lib/auth-context';
 import { brand, locale, theme } from '@/lib/store';
@@ -56,9 +57,15 @@ export const viewport: Viewport = {
   // Deliberately no maximumScale or userScalable: false. Blocking zoom is a WCAG
   // failure, and pinch-zoom is how people read small print on a phone.
   //
-  // From config, not a literal: the browser chrome should match the store's own darkest
-  // surface, and the lint rule correctly refused the hardcoded hex that was here.
-  themeColor: theme.colors.surfaceDeep,
+  // From config, not a literal: the browser chrome should match the store's own
+  // surfaces. The toggle updates the live meta tag; these media queries cover the
+  // first paint before JS.
+  themeColor: theme.modes
+    ? [
+        { media: '(prefers-color-scheme: light)', color: theme.modes.light.page },
+        { media: '(prefers-color-scheme: dark)', color: theme.modes.dark.page },
+      ]
+    : theme.colors.surfaceDeep,
 };
 
 export default function RootLayout({ children }: { readonly children: React.ReactNode }) {
@@ -83,19 +90,14 @@ export default function RootLayout({ children }: { readonly children: React.Reac
           One auth subscription for the whole tree — the header's bell and the account pages read
           the same `{ uid, ready }` rather than each wiring their own listener. ThemeProvider
           wraps everything so the header toggle and every surface share one live mode.
+          Header and footer are passed as slots so the client shell can omit them on
+          sign-in / register without importing those server components.
         */}
         <ThemeProvider>
           <AuthProvider>
-          <SiteHeader />
-          {/*
-            `main` with an id is the skip-link target and the page's primary landmark.
-            tabIndex={-1} makes it programmatically focusable so the skip actually moves
-            focus rather than only scrolling.
-          */}
-          <main id="main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
-            {children}
-          </main>
-          <SiteFooter />
+            <StoreShell header={<SiteHeader />} footer={<SiteFooter />}>
+              {children}
+            </StoreShell>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -36,7 +36,7 @@ const SIZES: Readonly<Record<ButtonSize, string>> = Object.freeze({
 });
 
 const BASE =
-  'inline-flex items-center justify-center rounded-md font-body font-semibold ' +
+  'inline-flex items-center justify-center rounded-pill font-body font-semibold ' +
   'disabled:opacity-50 disabled:pointer-events-none select-none';
 
 function buttonClasses(variant: ButtonVariant, size: ButtonSize, fullWidth: boolean): string {

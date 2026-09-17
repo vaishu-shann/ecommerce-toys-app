@@ -22,11 +22,17 @@ export function AddToCartButton({
   variantId,
   inStock,
   label,
+  qty = 1,
+  priceCaption,
 }: {
   readonly productId: string;
   readonly variantId: string;
   readonly inStock: boolean;
   readonly label: string;
+  /** Units to add. The cart API already accepts `qty`; this is the stepper's value. */
+  readonly qty?: number;
+  /** Optional price shown on the button, e.g. the selected variant's formatted price. */
+  readonly priceCaption?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -39,7 +45,7 @@ export function AddToCartButton({
       .add({
         productId: productId as ProductId,
         variantId: variantId as VariantId,
-        qty: 1,
+        qty,
         mode: 'add',
       })
       .then(() => {
@@ -51,18 +57,20 @@ export function AddToCartButton({
       });
   };
 
+  const caption = priceCaption !== undefined ? `${label} · ${priceCaption}` : label;
+
   if (!inStock) {
     return (
-      <Button size="lg" fullWidth disabled>
-        {label}
+      <Button size="lg" fullWidth disabled aria-label={label}>
+        {caption}
       </Button>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <Button size="lg" fullWidth loading={busy} onClick={add}>
-        {label}
+      <Button size="lg" fullWidth loading={busy} onClick={add} aria-label={label}>
+        {caption}
       </Button>
       {error !== null ? (
         <p role="alert" className="font-body text-sm text-danger">

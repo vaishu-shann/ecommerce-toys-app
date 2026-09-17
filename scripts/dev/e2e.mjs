@@ -35,12 +35,15 @@ import {
   PORTS,
   SERVICES,
   allPassed,
+  cliExecutable,
   emulatorProfileEnv,
   firebaseProfileEnv,
   formatStatusRow,
   parseArgs,
   parseDotenv,
   probeVerdict,
+  httpReached,
+  withLocalBinPath,
 } from './e2e-lib.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -51,6 +54,13 @@ const logDir = resolve(runDir, 'logs');
 const STORE_ID = process.env.STORE_ID ?? 'romp';
 const EMULATORS = 'auth,firestore,storage,ui';
 const PROJECT = `demo-${STORE_ID}`;
+const localBinDir = resolve(repoRoot, 'node_modules', '.bin');
+const firebaseCli = resolve(repoRoot, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js');
+const isWin = process.platform === 'win32';
+
+function spawnEnv(env = {}) {
+  return withLocalBinPath({ ...process.env, ...env }, localBinDir);
+}
 
 function out(message = '') {
   process.stdout.write(`${message}\n`);
@@ -130,19 +140,30 @@ function isAlive(pid) {
  * pid. Detached + unref so the orchestrator can exit while the service keeps running; the pid
  * file is how `stop`/`status` find it later.
  */
-function startService(name, command, args, env) {
+function startService(name, command, args, env, options = {}) {
   const existing = readPid(name);
   if (existing !== null && isAlive(existing)) {
     out(`  · ${name} already running (pid ${String(existing)})`);
     return;
   }
   const fd = openSync(logFile(name), 'a');
-  const child = spawn(command, args, {
+  const exe = options.raw === true ? command : cliExecutable(command);
+  const child = spawn(exe, args, {
     cwd: repoRoot,
-    env: { ...process.env, ...env },
+    env: spawnEnv(env),
     detached: true,
     stdio: ['ignore', fd, fd],
+    // `.cmd` shims (pnpm) only launch on Windows through a shell. Firebase is
+    // spawned as `node firebase.js` so `--only a,b,c` is not split by cmd.exe.
+    shell: options.shell ?? isWin,
+    windowsHide: true,
   });
+  child.on('error', (error) => {
+    fail(`Failed to start ${name} (${exe}): ${error.message}`);
+  });
+  if (child.pid === undefined) {
+    fail(`Failed to start ${name} (${exe}): process did not launch.`);
+  }
   writeFileSync(pidFile(name), String(child.pid));
   child.unref();
   out(
@@ -230,22 +251,60 @@ async function waitForReady(name, url, accept, timeoutMs = 90000) {
   }
 }
 
+/**
+ * Hub answering 200 does not mean Auth/Firestore are bound yet. Seed-admins talks to
+ * :9099; a connection refused there is the failure we hit if we seed too early.
+ * Any HTTP status (including 404) means the emulator is listening.
+ */
+async function waitUntilListening(name, url, timeoutMs = 90000) {
+  const deadline = Date.now() + timeoutMs;
+  process.stdout.write(`  … waiting for ${name} `);
+  for (;;) {
+    const raw = await httpProbe(url, 2000);
+    if (httpReached(raw)) {
+      out('ready');
+      return true;
+    }
+    if (Date.now() > deadline) {
+      out('timed out');
+      return false;
+    }
+    process.stdout.write('.');
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+
+function ensureStoreTokens() {
+  const artefact = resolve(repoRoot, 'packages', 'store-config', 'generated', 'store-config.json');
+  if (existsSync(artefact)) return;
+  out('Generating store tokens…');
+  const tokens = spawnSync(cliExecutable('pnpm'), ['store:tokens'], {
+    cwd: repoRoot,
+    env: spawnEnv(),
+    stdio: 'inherit',
+    shell: isWin,
+  });
+  if (tokens.status !== 0) fail('store:tokens failed.');
+}
+
 // --- seeding ---------------------------------------------------------------
 
 function seed(env) {
   out('  seeding catalogue…');
-  const cat = spawnSync('pnpm', ['seed', '--project', PROJECT, '--reset'], {
+  const cat = spawnSync(cliExecutable('pnpm'), ['seed', '--project', PROJECT, '--reset'], {
     cwd: repoRoot,
-    env: { ...process.env, ...env },
+    env: spawnEnv(env),
     stdio: 'inherit',
+    shell: isWin,
   });
   if (cat.status !== 0) fail('Catalogue seed failed.');
 
   out('  seeding admins…');
-  const admins = spawnSync('pnpm', ['seed:admins'], {
+  const admins = spawnSync(cliExecutable('pnpm'), ['seed:admins'], {
     cwd: repoRoot,
-    env: { ...process.env, ...env },
+    env: spawnEnv(env),
     stdio: 'inherit',
+    shell: isWin,
   });
   if (admins.status !== 0) fail('Admin seed failed.');
 }
@@ -258,15 +317,34 @@ async function cmdStart(profile) {
 
   if (profile === 'emulator') {
     assertJavaAvailable();
+    ensureStoreTokens();
+    if (!existsSync(firebaseCli)) {
+      fail('firebase-tools is not installed. Run pnpm install and retry.');
+    }
     out('Starting Firebase emulators…');
     startService(
       'emulators',
-      'firebase',
-      ['emulators:start', '--project', PROJECT, '--only', EMULATORS],
+      process.execPath,
+      [firebaseCli, 'emulators:start', '--project', PROJECT, '--only', EMULATORS],
       env,
+      { raw: true, shell: false },
     );
     const hubReady = await waitForReady('emulators', `http://127.0.0.1:${PORTS.hub}/`, [200]);
     if (!hubReady) fail('Emulators did not become ready. Check .e2e/logs/emulators.log');
+    const authReady = await waitUntilListening(
+      'auth emulator',
+      `http://127.0.0.1:${PORTS.auth}/`,
+    );
+    if (!authReady) {
+      fail('Auth emulator did not become ready on port 9099. Check .e2e/logs/emulators.log');
+    }
+    const firestoreReady = await waitUntilListening(
+      'firestore emulator',
+      `http://127.0.0.1:${PORTS.firestore}/`,
+    );
+    if (!firestoreReady) {
+      fail('Firestore emulator did not become ready on port 8181. Check .e2e/logs/emulators.log');
+    }
     seed(env);
   } else {
     out('Profile: firebase (real project) — skipping emulators and seeding.');

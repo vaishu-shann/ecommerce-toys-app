@@ -20,8 +20,8 @@ export function SiteFooter() {
   const supportHref = buildWhatsappLink(contact);
 
   return (
-    <footer className="mt-16 border-t border-border bg-surface-deep">
-      <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+    <footer className="mt-10 border-t border-border bg-surface-deep">
+      <div className="mx-auto w-[90%] py-10">
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="max-w-sm">
             <Wordmark />

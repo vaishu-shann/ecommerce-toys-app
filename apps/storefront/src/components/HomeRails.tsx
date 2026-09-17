@@ -10,8 +10,8 @@ import { categoryRail, featuredProducts, getNavCategories } from '@/server/catal
  * better as a declarative shell with these two dropped into Suspense boundaries.
  */
 
-const FEATURED_LIMIT = 8;
-const RAIL_LIMIT = 6;
+const FEATURED_LIMIT = 4;
+const RAIL_LIMIT = 4;
 
 /** The featured rail — the newest products across the store, above the fold. */
 export async function FeaturedRail({ title }: { readonly title: string }) {
@@ -21,7 +21,7 @@ export async function FeaturedRail({ title }: { readonly title: string }) {
     <ProductRail
       title={title}
       products={products}
-      seeAllHref="/c/all"
+      seeAllHref="/listing"
       headingId="featured-heading"
     />
   );

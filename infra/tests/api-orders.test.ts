@@ -217,6 +217,47 @@ describe('POST /v1/checkout/quote', () => {
       quote.subtotalMinor + quote.giftWrapMinor + quote.shippingMinor + quote.taxMinor,
     );
   });
+
+  it('quotes a leftover guest-cookie cart after sign-in', async () => {
+    const productId = uniqueId('p');
+    const variantId = uniqueId('v');
+    await seedCatalogue(productId, variantId, 10);
+
+    const guestAdd = await app.inject({
+      method: 'POST',
+      url: '/v1/cart/items',
+      payload: { productId, variantId, qty: 2, mode: 'add' },
+    });
+    const setCookie = guestAdd.headers['set-cookie'];
+    const raw = Array.isArray(setCookie) ? (setCookie[0] ?? '') : (setCookie ?? '');
+    const cookie = raw.split(';')[0] ?? '';
+
+    const email = `order.guest.${uniqueId('c')}@example.com`;
+    const password = 'velvet thunder maple orbit river';
+    const user = await getAuth(adminApp).createUser({ email, password });
+    const uid = user.uid;
+    const token = await signIn(email, password);
+    await ctx.db
+      .doc(`users/${uid}`)
+      .withConverter(converters.users)
+      .set(aUser({ email: email as ReturnType<typeof aUser>['email'] }));
+    await ctx.db
+      .doc(`users/${uid}/addresses/addr`)
+      .withConverter(converters.addresses)
+      .set(anAddress());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/checkout/quote',
+      headers: { authorization: `Bearer ${token}`, cookie },
+      payload: { deliverySpeed: 'standard' },
+    });
+    expect(response.statusCode).toBe(200);
+    const quote = response.json<CheckoutQuoteResponse>();
+    expect(quote.lines).toHaveLength(1);
+    expect(quote.lines[0]?.qty).toBe(2);
+    expect(quote.subtotalMinor).toBe(2_59_800);
+  });
 });
 
 describe('POST /v1/orders', () => {

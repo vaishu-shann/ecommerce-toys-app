@@ -41,6 +41,10 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '*.firebasestorage.app' },
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com' },
+      { protocol: 'https', hostname: 'media.istockphoto.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'as1.ftcdn.net', pathname: '/**' },
+      { protocol: 'https', hostname: 'encrypted-tbn0.gstatic.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'img.magnific.com', pathname: '/**' },
     ],
     // AVIF first: materially smaller than WebP on photographic product images, which is
     // the dominant payload on every page here.

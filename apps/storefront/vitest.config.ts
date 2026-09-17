@@ -38,6 +38,7 @@ const base = createVitestConfig({
     // components are tested with these two modules mocked (the request shapes are the
     // contract types); the API side is covered end to end in `infra/tests`.
     'src/lib/order-api.ts',
+    'src/lib/cart-api.ts',
     'src/lib/use-checkout.ts',
   ],
 });

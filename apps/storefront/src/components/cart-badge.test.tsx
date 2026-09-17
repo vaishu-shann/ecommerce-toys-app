@@ -15,6 +15,10 @@ vi.mock('@/lib/cart-api', () => ({
   CartApiError: class CartApiError extends Error {},
 }));
 
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ uid: null, ready: true }),
+}));
+
 const { CartBadge } = await import('./CartBadge');
 
 const view = (itemCount: number): CartView => ({

@@ -70,7 +70,7 @@ export function NotificationBell({ uid }: NotificationBellProps) {
       <Link
         href="/account"
         aria-label="Notifications"
-        className="inline-flex size-11 items-center justify-center rounded-md text-text-primary hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        className="header-action"
       >
         <BellIcon />
       </Link>
@@ -83,6 +83,7 @@ export function NotificationBell({ uid }: NotificationBellProps) {
         label={badge === null ? 'Notifications' : `Notifications, ${String(unreadCount)} unread`}
         aria-haspopup="menu"
         aria-expanded={open}
+        className="rounded-full"
         onClick={() => {
           setOpen((current) => !current);
         }}

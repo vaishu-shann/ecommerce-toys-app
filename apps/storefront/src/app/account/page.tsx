@@ -1,8 +1,11 @@
-import { AccountDashboard } from '@/components/account/AccountDashboard';
+import { redirect } from 'next/navigation';
 
-/** The account home — a client dashboard behind the auth context. */
+/**
+ * The account home is the orders list — matching the mock's default tab.
+ * Name and password live on /account/profile (the sidebar avatar).
+ */
 export const metadata = { title: 'Your account' };
 
 export default function AccountPage() {
-  return <AccountDashboard />;
+  redirect('/account/orders');
 }

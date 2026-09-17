@@ -90,6 +90,14 @@ describe('OrderHistory', () => {
     render(<OrderHistory />);
     const link = await screen.findByRole('link', { name: /RMP-1001/u });
     expect(link).toHaveAttribute('href', '/account/orders/order-1');
+    expect(screen.getByRole('link', { name: 'Invoice' })).toHaveAttribute(
+      'href',
+      '/account/orders/order-1',
+    );
+    expect(screen.getByRole('link', { name: 'Track' })).toHaveAttribute(
+      'href',
+      '/account/orders/order-1',
+    );
   });
 
   it('shows the empty state when there are no orders', async () => {

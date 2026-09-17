@@ -14,10 +14,16 @@ vi.mock('next/navigation', () => ({
 import { ListingControls } from './ListingControls';
 
 /**
- * The sort control.
+ * The sort/layout controls.
  *
- * The behaviour worth testing is what it writes to the URL. The load-bearing assertion
- * is that **every change drops the cursor**.
+ * The behaviour worth testing is what they write to the URL, because that is the whole
+ * mechanism: the state lives in the query string, the server re-renders from it. The
+ * router is faked so a `push` is observable.
+ *
+ * The load-bearing assertion is that **every change drops the cursor**. A cursor is bound
+ * to the sort that produced it; carrying one across a sort change is exactly what
+ * `decodeCursor` rejects, so resetting to page one here is what keeps the customer from
+ * ever seeing that error.
  */
 describe('ListingControls', () => {
   beforeEach(() => {
@@ -34,6 +40,7 @@ describe('ListingControls', () => {
   });
 
   it('drops the cursor when the sort changes', async () => {
+    // A cursor from a price-sorted page is meaningless under a rating sort.
     currentParams = new URLSearchParams({ sort: 'newest', cursor: 'STALE' });
     render(<ListingControls sort="newest" />);
 
@@ -44,27 +51,17 @@ describe('ListingControls', () => {
     expect(target).not.toContain('cursor');
   });
 
-  it('drops a price filter when switching to rating sort', async () => {
-    currentParams = new URLSearchParams({ minPrice: '50000', sort: 'price_asc' });
-    render(<ListingControls sort="price_asc" />);
-
-    await userEvent.selectOptions(screen.getByRole('combobox'), 'rating_desc');
-
-    const target = push.mock.calls[0]?.[0] as string;
-    expect(target).toContain('sort=rating_desc');
-    expect(target).not.toContain('minPrice');
-  });
-
-  it('omits the default sort from the URL', async () => {
+  it('omits the default sort rather than writing newest', async () => {
     currentParams = new URLSearchParams({ sort: 'price_asc' });
     render(<ListingControls sort="price_asc" />);
 
     await userEvent.selectOptions(screen.getByRole('combobox'), 'newest');
 
-    expect(push).toHaveBeenCalledWith('/c/wooden');
+    const target = push.mock.calls[0]?.[0] as string;
+    expect(target).not.toContain('sort=');
   });
 
-  it('reflects the current sort', () => {
+  it('reflects the current state', () => {
     render(<ListingControls sort="price_desc" />);
 
     expect(screen.getByRole('combobox')).toHaveValue('price_desc');

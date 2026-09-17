@@ -222,4 +222,35 @@ describe('merge on sign-in', () => {
     // The user cart holds the merged quantity.
     expect((await ctx.db.doc(`carts/${user.uid}`).get()).exists).toBe(true);
   });
+
+  it('folds a leftover guest cookie into the uid cart on a signed-in GET', async () => {
+    const productId = uniqueId('cart-prod');
+    const variantId = uniqueId('cart-var');
+    await seedCatalogue(productId, variantId, 10);
+
+    const guestAdd = await app.inject({
+      method: 'POST',
+      url: '/v1/cart/items',
+      payload: { productId, variantId, qty: 2, mode: 'add' },
+    });
+    const cookie = cookieFrom(guestAdd.headers['set-cookie']);
+
+    const email = `cart.get.${String(Date.now())}@example.com`;
+    const password = 'velvet thunder maple orbit river';
+    const user = await getAuth(adminApp).createUser({ email, password });
+    const token = await signIn(email, password);
+
+    // No explicit merge: a signed-in cart GET with the leftover cookie must fold it in, or
+    // checkout would quote an empty uid cart while the bag still showed the guest items.
+    const read = await app.inject({
+      method: 'GET',
+      url: '/v1/cart',
+      headers: { authorization: `Bearer ${token}`, cookie },
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.json<CartView>().itemCount).toBe(2);
+    expect((await ctx.db.doc(`carts/${user.uid}`).get()).exists).toBe(true);
+    const guestCartId = cookie.split('=')[1]?.split('.')[0] ?? '';
+    expect((await ctx.db.doc(`carts/${guestCartId}`).get()).exists).toBe(false);
+  });
 });

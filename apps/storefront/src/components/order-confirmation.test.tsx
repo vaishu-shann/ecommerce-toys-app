@@ -14,6 +14,7 @@ import type { OrderView, SubmitPaymentProofResponse } from '@romp/contracts';
 const get = vi.hoisted(() => vi.fn<() => Promise<OrderView>>());
 const submitPaymentProof = vi.hoisted(() => vi.fn<() => Promise<SubmitPaymentProofResponse>>());
 const qr = vi.hoisted(() => vi.fn());
+const auth = vi.hoisted(() => ({ current: { uid: 'cust-1' as string | null, ready: true } }));
 
 vi.mock('@/lib/order-api', () => ({
   orderApi: { get, quote: vi.fn(), place: vi.fn(), submitPaymentProof },
@@ -22,6 +23,9 @@ vi.mock('@/lib/order-api', () => ({
       super(detail);
     }
   },
+}));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => auth.current,
 }));
 // Render the QR as a marker element carrying its encoded value, so the test can assert what was
 // encoded without depending on the SVG the real component draws.
@@ -102,6 +106,7 @@ beforeEach(() => {
   get.mockReset();
   submitPaymentProof.mockReset();
   qr.mockReset();
+  auth.current = { uid: 'cust-1', ready: true };
 });
 
 describe('OrderConfirmation', () => {
@@ -110,8 +115,15 @@ describe('OrderConfirmation', () => {
     render(<OrderConfirmation orderId="order-abc" />);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /order rmp-1000/iu })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /playtime is/iu })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /order #rmp-1000/iu })).toBeInTheDocument();
     });
+    expect(screen.getByRole('link', { name: /track order/iu })).toHaveAttribute(
+      'href',
+      '/account/orders/order-abc',
+    );
+    expect(screen.getByRole('link', { name: /keep shopping/iu })).toHaveAttribute('href', '/listing');
+    expect(screen.getByText('Order placed')).toBeInTheDocument();
     // The QR encodes exactly the server-minted payload.
     expect(qr).toHaveBeenCalledWith(
       'upi://pay?pa=store@bank&pn=Store&am=2360.00&tn=RMP-1000&cu=INR',
@@ -184,6 +196,63 @@ describe('OrderConfirmation', () => {
     });
     // The form is available again for a resubmission.
     expect(screen.getByRole('button', { name: /submit payment reference/iu })).toBeInTheDocument();
+  });
+
+  it('renders the timeline when the API sends ISO date strings', async () => {
+    get.mockResolvedValue(
+      anOrder({
+        createdAt: '2026-09-09T10:42:00.000Z' as unknown as Date,
+        updatedAt: '2026-09-09T10:42:00.000Z' as unknown as Date,
+      }),
+    );
+    render(<OrderConfirmation orderId="order-abc" />);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /playtime is/iu })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Order placed')).toBeInTheDocument();
+    expect(screen.getByText('Packed')).toBeInTheDocument();
+  });
+
+  it('shows payment captured and hides the QR once the order is paid', async () => {
+    get.mockResolvedValue(
+      anOrder({
+        status: 'paid',
+        payment: {
+          ...anOrder().payment,
+          upiRef: '412398765432',
+          verifiedBy: 'staff-1',
+          verifiedAt: new Date('2026-09-09T00:12:00.000Z'),
+        },
+        fulfilment: {
+          ...anOrder().fulfilment,
+          status: 'packed',
+          packedAt: new Date('2026-09-10T08:00:00.000Z'),
+        },
+      } as Partial<OrderView>),
+    );
+    render(<OrderConfirmation orderId="order-abc" />);
+    await waitFor(() => {
+      expect(screen.getByText(/payment captured/iu)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/leaves the bengaluru hub/iu)).toBeInTheDocument();
+    expect(screen.queryByTestId('upi-qr')).not.toBeInTheDocument();
+    expect(screen.getByText('Paid')).toBeInTheDocument();
+  });
+
+  it('waits for auth before fetching, then shows a sign-in prompt when signed out', async () => {
+    auth.current = { uid: null, ready: false };
+    const { rerender } = render(<OrderConfirmation orderId="order-abc" />);
+    expect(get).not.toHaveBeenCalled();
+    expect(screen.getByText(/loading your order/iu)).toBeInTheDocument();
+
+    auth.current = { uid: null, ready: true };
+    rerender(<OrderConfirmation orderId="order-abc" />);
+    expect(get).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /sign in to see this order/iu })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /sign in/iu })).toHaveAttribute(
+      'href',
+      '/account/sign-in?next=/orders/order-abc',
+    );
   });
 
   it('surfaces the API message when the order cannot be read', async () => {

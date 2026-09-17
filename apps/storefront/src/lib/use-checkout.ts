@@ -29,6 +29,7 @@ export interface CheckoutAddress {
   readonly city: string;
   readonly state: string;
   readonly pincode: string;
+  readonly phone: string;
   readonly isDefault: boolean;
 }
 
@@ -48,6 +49,7 @@ interface RawAddress {
   readonly city?: unknown;
   readonly state?: unknown;
   readonly pincode?: unknown;
+  readonly phone?: unknown;
   readonly isDefault?: unknown;
 }
 
@@ -90,6 +92,7 @@ export function useCheckoutSession(): CheckoutSession {
               city: str(data.city),
               state: str(data.state),
               pincode: str(data.pincode),
+              phone: str(data.phone),
               isDefault: data.isDefault === true,
             };
           }),

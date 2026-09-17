@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { WishlistView } from '@/components/account/WishlistView';
 import { features } from '@/lib/store';
 
-export const metadata = { title: 'Saved toys' };
+export const metadata = { title: 'Wishlist' };
 
 /**
  * The wishlist page.

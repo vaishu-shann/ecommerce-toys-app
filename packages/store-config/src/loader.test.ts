@@ -98,6 +98,7 @@ function validConfig(overrides: Record<string, unknown> = {}): Record<string, un
           secondaryCta: { label: 'B', href: '/b' },
         },
         promo: { headline: 'H', subcopy: 'S', cta: { label: 'C', href: '/c' } },
+        sale: { headline: 'Sale', subcopy: 'Now', cta: { label: 'Shop', href: '/c' } },
         trustBadges: [{ title: 'T', description: 'D' }],
         ageSectionTitle: 'Age',
         featuredTitle: 'Featured',
@@ -129,12 +130,13 @@ function validConfig(overrides: Record<string, unknown> = {}): Record<string, un
           pendingNotice: 'Awaiting moderation.',
         },
       },
+      listing: { title: 'All' },
       ageBands: [{ value: '0-2', label: '0–2', note: 'Note' }],
       categories: [
         { name: 'One', slug: 'one', showInFilters: true, showInNav: true, sortOrder: 10 },
       ],
       footer: {
-        columns: [{ title: 'Shop', links: [{ label: 'All', href: '/c/all' }] }],
+        columns: [{ title: 'Shop', links: [{ label: 'All', href: '/listing' }] }],
         legalLine: '© Fixture',
       },
       policies: { returns: 'R', shipping: 'S', privacy: 'P', terms: 'T' },
@@ -296,6 +298,24 @@ describe('validateStoreConfig', () => {
   it('enforces the contrast gate', () => {
     const broken = validConfig();
     setPath(broken, 'theme.colors.textPrimary', '#20222a');
+
+    expect(() => validateStoreConfig('fixture', broken, noAssets)).toThrow(ContrastError);
+  });
+
+  it('enforces the contrast gate on both palettes when modes are present', () => {
+    const broken = validConfig();
+    const colors = (broken.theme as { colors: Record<string, string> }).colors;
+    setPath(broken, 'theme.modes', {
+      light: {
+        ...colors,
+        page: '#ffffff',
+        surface: '#ffffff',
+        surfaceAlt: '#ffffff',
+        surfaceDeep: '#ffffff',
+        textPrimary: '#eeeeee',
+      },
+      dark: colors,
+    });
 
     expect(() => validateStoreConfig('fixture', broken, noAssets)).toThrow(ContrastError);
   });

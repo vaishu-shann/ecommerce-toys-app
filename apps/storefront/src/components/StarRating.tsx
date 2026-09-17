@@ -11,17 +11,20 @@ export interface StarRatingProps {
   readonly rating: number;
   /** The accessible label, e.g. "4 out of 5 stars". */
   readonly label: string;
+  /** Lime on the PDP summary; coral on the review list. */
+  readonly tone?: 'accent' | 'primary';
 }
 
-export function StarRating({ rating, label }: StarRatingProps) {
+export function StarRating({ rating, label, tone = 'accent' }: StarRatingProps) {
   const filled = Math.round(rating);
+  const filledClass = tone === 'primary' ? 'text-primary' : 'text-accent';
   return (
     <span className="inline-flex items-center gap-0.5" role="img" aria-label={label}>
       {[1, 2, 3, 4, 5].map((star) => (
         <span
           key={star}
           aria-hidden="true"
-          className={star <= filled ? 'text-accent' : 'text-text-muted/40'}
+          className={star <= filled ? filledClass : 'text-text-muted/40'}
         >
           {star <= filled ? '★' : '☆'}
         </span>

@@ -35,15 +35,23 @@ export interface RateLimitRule {
  * into each other. `now` is injectable for the same reason the sweeper's clock is: a
  * window-expiry test cannot wait a real hour.
  */
-export function createRateLimiter(now: () => number = Date.now) {
+export function createRateLimiter(
+  now: () => number = Date.now,
+  options: { readonly skip?: boolean } = {},
+) {
   const windows = new Map<string, Window>();
 
   /**
    * Consumes one unit for `key` under `rule`, throwing `RateLimitedError` when the window is
    * exhausted. The error carries the seconds until reset, which the error handler turns into
    * a `Retry-After` header.
+   *
+   * When `skip` is set the limiter is a no-op. That is the Auth-emulator path: a local
+   * shopper iterating on sign-in should not burn the production 5/hour register budget.
    */
   function consume(key: string, rule: RateLimitRule): void {
+    if (options.skip === true) return;
+
     const current = now();
     const existing = windows.get(key);
 
@@ -93,6 +101,9 @@ export function rateLimitKey(request: FastifyRequest, scope: string): string {
  * rather than being sprinkled across handlers.
  */
 export const RATE_LIMITS = {
+  // 5 attempts per hour per IP. Failed attempts count — the limiter runs before validation
+  // so a spray of weak passwords cannot probe identifiers. Against the Auth emulator the
+  // in-process limiter is skipped (see `buildApp`), so local create-account is not blocked.
   register: { limit: 5, windowSeconds: 3_600 },
   checkIdentifier: { limit: 20, windowSeconds: 3_600 },
   placeOrder: { limit: 10, windowSeconds: 3_600 },

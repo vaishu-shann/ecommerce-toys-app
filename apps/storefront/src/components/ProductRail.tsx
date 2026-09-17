@@ -1,15 +1,16 @@
 import Link from 'next/link';
 
 import type { ProductSummary } from '@romp/contracts';
-import { Section } from '@romp/ui';
+
+import { homePlaceholder } from '@/lib/home-placeholders';
 
 import { ProductCard } from './ProductCard';
 
 /**
- * A horizontal rail of products for the home page.
+ * A rail of products for the home page.
  *
- * Scrolls horizontally on a phone and lays out as a row on a desktop, so a rail of six
- * products does not become a tall column that pushes everything below the fold. The
+ * Lays out as a four-column grid on a desktop and a snapping row on a phone, so six
+ * products do not become a tall column that pushes everything below the fold. The
  * heading is passed in from config copy; the "see all" link is optional, for a rail that
  * maps to a listing page.
  *
@@ -24,47 +25,42 @@ export interface ProductRailProps {
   readonly headingId: string;
 }
 
-/** A rail card is ~280px wide, so the browser fetches an image scaled to that. */
-const RAIL_SIZES = '280px';
+const RAIL_SIZES = '(min-width: 1024px) 25vw, 280px';
 
 export function ProductRail({ title, products, seeAllHref, headingId }: ProductRailProps) {
   if (products.length === 0) return null;
 
-  const action =
-    seeAllHref === undefined ? undefined : (
-      <Link
-        href={seeAllHref}
-        className="inline-flex items-center gap-1 font-body text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-      >
-        See all
-        <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true" fill="none">
-          <path
-            d="M7 4l6 6-6 6"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </Link>
-    );
-
   return (
-    // The heading id is preserved so the section's labelling contract is unchanged; Section
-    // owns the header row, and the "See all" affordance sits in its action slot.
-    <Section title={<span id={headingId}>{title}</span>} action={action} aria-labelledby={headingId}>
-      {/*
-        A scroll-snapping row. `overflow-x-auto` with fixed-width children is the rail;
-        on a wide screen the children simply do not overflow and it reads as a grid row.
-      */}
-      <ul className="flex snap-x gap-4 overflow-x-auto pb-2">
+    <section aria-labelledby={headingId} className="flex flex-col gap-5">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2
+          id={headingId}
+          className="font-body text-xs font-bold tracking-[0.18em] text-text-primary uppercase"
+        >
+          {title}
+        </h2>
+        {seeAllHref !== undefined && (
+          <Link
+            href={seeAllHref}
+            className="font-body text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            View all <span aria-hidden="true">→</span>
+          </Link>
+        )}
+      </div>
+
+      <ul className="flex snap-x gap-4 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible">
         {products.map((product, index) => (
-          <li key={product.id} className="w-[280px] shrink-0 snap-start">
-            {/* The first rail is above the fold, so its first card is a priority image. */}
-            <ProductCard product={product} sizes={RAIL_SIZES} priority={index === 0} />
+          <li key={product.id} className="w-[280px] shrink-0 snap-start lg:w-auto lg:min-w-0">
+            <ProductCard
+              product={product}
+              sizes={RAIL_SIZES}
+              priority={index === 0}
+              placeholderSrc={homePlaceholder(index)}
+            />
           </li>
         ))}
       </ul>
-    </Section>
+    </section>
   );
 }

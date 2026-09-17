@@ -2,15 +2,18 @@
 
 import type { AddCartItemRequest, CartView } from '@romp/contracts';
 
+import { idToken } from './firebase-client';
+
 /**
  * The storefront's client for the cart API.
  *
  * The cart is written through the API and never by the client, so this is the only way the
- * storefront changes a cart: it POSTs a mutation and gets back the whole `CartView` to render. Every
- * request sends credentials so the signed guest-cart cookie rides along — that cookie is how an
- * anonymous shopper's cart is found across requests, and the API is its only reader. A non-2xx
- * response becomes a thrown `CartApiError` carrying the server's message, so the buy box and the
- * cart page can show the store's own copy ("not enough stock", say).
+ * storefront changes a cart: it POSTs a mutation and gets back the whole `CartView` to render.
+ * Every request sends credentials so the signed guest-cart cookie rides along, and attaches a
+ * Firebase ID token when the customer is signed in — the API then acts on `carts/{uid}` (folding
+ * any leftover guest cookie first) rather than the anonymous cart. A non-2xx response becomes a
+ * thrown `CartApiError` carrying the server's message, so the buy box and the cart page can show
+ * the store's own copy ("not enough stock", say).
  *
  * `NEXT_PUBLIC_API_BASE_URL` is the API origin — deployment configuration, the same value the admin
  * app uses. Coverage-excluded: it is fetch glue; the request shapes it sends are the contract types.
@@ -30,12 +33,20 @@ export class CartApiError extends Error {
   }
 }
 
+async function headersFor(body?: unknown): Promise<Record<string, string>> {
+  const headers: Record<string, string> =
+    body === undefined ? {} : { 'content-type': 'application/json' };
+  const token = await idToken();
+  if (token !== null) headers.authorization = `Bearer ${token}`;
+  return headers;
+}
+
 async function request(method: string, path: string, body?: unknown): Promise<CartView> {
   const response = await fetch(`${apiBase()}${path}`, {
     method,
     // Send and accept the signed cart cookie on every request.
     credentials: 'include',
-    headers: body === undefined ? {} : { 'content-type': 'application/json' },
+    headers: await headersFor(body),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
@@ -56,4 +67,6 @@ export const cartApi = {
   add: (body: AddCartItemRequest) => request('POST', '/v1/cart/items', body),
   remove: (variantId: string) => request('DELETE', `/v1/cart/items/${variantId}`),
   setGiftWrap: (giftWrap: boolean) => request('PATCH', '/v1/cart', { giftWrap }),
+  /** Folds a leftover guest cookie cart into the signed-in uid cart. */
+  merge: () => request('POST', '/v1/cart/merge'),
 };

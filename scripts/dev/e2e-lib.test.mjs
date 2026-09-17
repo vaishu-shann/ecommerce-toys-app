@@ -5,12 +5,15 @@ import {
   PORTS,
   SERVICES,
   allPassed,
+  cliExecutable,
   emulatorProfileEnv,
   firebaseProfileEnv,
   formatStatusRow,
   parseArgs,
   parseDotenv,
   probeVerdict,
+  httpReached,
+  withLocalBinPath,
 } from './e2e-lib.mjs';
 
 /**
@@ -103,6 +106,30 @@ test('allPassed is true only when every verdict is ok', () => {
   assert.equal(allPassed([{ verdict: { ok: true } }, { verdict: { ok: false } }]), false);
 });
 
+test('httpReached treats any HTTP status as listening and connection errors as not', () => {
+  assert.equal(httpReached({ status: 200 }), true);
+  assert.equal(httpReached({ status: 404 }), true);
+  assert.equal(httpReached({ error: 'This operation was aborted' }), false);
+  assert.equal(httpReached({ error: 'connect ECONNREFUSED 127.0.0.1:9099' }), false);
+});
+
 test('SERVICES lists the four managed services in start order', () => {
   assert.deepEqual([...SERVICES], ['emulators', 'api', 'storefront', 'admin']);
+});
+
+test('cliExecutable uses .cmd shims on Windows and bare names elsewhere', () => {
+  assert.equal(cliExecutable('firebase', 'win32'), 'firebase.cmd');
+  assert.equal(cliExecutable('pnpm', 'win32'), 'pnpm.cmd');
+  assert.equal(cliExecutable('npx', 'win32'), 'npx.cmd');
+  assert.equal(cliExecutable('firebase.cmd', 'win32'), 'firebase.cmd');
+  assert.equal(cliExecutable('firebase', 'linux'), 'firebase');
+  assert.equal(cliExecutable('firebase', 'darwin'), 'firebase');
+});
+
+test('withLocalBinPath prepends node_modules/.bin on PATH', () => {
+  const win = withLocalBinPath({ PATH: 'C:\\Windows' }, 'F:\\repo\\node_modules\\.bin', 'win32');
+  assert.equal(win.PATH, 'F:\\repo\\node_modules\\.bin;C:\\Windows');
+  assert.equal(win.Path, win.PATH);
+  const unix = withLocalBinPath({ PATH: '/usr/bin' }, '/repo/node_modules/.bin', 'linux');
+  assert.equal(unix.PATH, '/repo/node_modules/.bin:/usr/bin');
 });

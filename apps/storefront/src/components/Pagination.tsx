@@ -57,8 +57,8 @@ export function Pagination({ basePath, params, nextCursor, hasCursor }: Paginati
       )}
 
       {nextCursor !== null && (
-        <ButtonLink href={withParams(basePath, nextParams)} variant="outline">
-          Next page
+        <ButtonLink href={withParams(basePath, nextParams)} variant="primary">
+          Next
         </ButtonLink>
       )}
     </nav>

@@ -3,12 +3,13 @@
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Badge, Button, Card, Field } from '@romp/ui';
+import { Badge, Button, Field } from '@romp/ui';
 
 import { AccountApiError, accountApi } from '@/lib/account-api';
 import { useAuth } from '@/lib/auth-context';
 import { firestoreClient } from '@/lib/firebase-client';
 
+import { AccountEmpty, AccountHeading } from './AccountHeading';
 import { SignedOut } from './SignedOut';
 
 /**
@@ -125,31 +126,38 @@ export function AddressBook() {
   };
 
   return (
-    <section className="flex flex-col gap-6" aria-labelledby="addresses-heading">
-      <h1 id="addresses-heading" className="font-display text-2xl text-text-primary">
-        Your addresses
-      </h1>
+    <section className="flex flex-col gap-4" aria-labelledby="addresses-heading">
+      <AccountHeading id="addresses-heading">Addresses</AccountHeading>
 
       {rows.length === 0 ? (
-        <p className="font-body text-text-muted">No saved addresses yet.</p>
+        <AccountEmpty
+          title="No saved addresses yet."
+          body="Add one below — checkout uses these, and exactly one stays the default."
+        />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {rows.map((row) => (
             <li key={row.id}>
-              <Card className="flex items-center justify-between gap-3 p-4">
-                <span className="flex flex-col">
-                  <span className="flex items-center gap-2 font-body font-semibold text-text-primary">
-                    {row.label}
-                    {row.isDefault ? <Badge tone="accent">Default</Badge> : null}
-                  </span>
-                  <span className="font-body text-sm text-text-muted">
-                    {row.recipientName} · {row.line1}, {row.city} {row.pincode}
-                  </span>
-                </span>
-                <span className="flex items-center gap-2">
+              <article className="account-panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-body text-[13.5px] font-bold text-text-primary">{row.label}</p>
+                    {row.isDefault ? (
+                      <Badge tone="primary" className="uppercase tracking-[0.08em]">
+                        Default
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="mt-1.5 font-body text-[12.5px] leading-relaxed text-text-muted">
+                    {row.recipientName}
+                    <br />
+                    {row.line1}, {row.city} {row.pincode}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   {!row.isDefault ? (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       disabled={pending}
                       onClick={() => {
@@ -158,7 +166,11 @@ export function AddressBook() {
                     >
                       Make default
                     </Button>
-                  ) : null}
+                  ) : (
+                    <span className="font-body text-[11px] font-bold tracking-[0.08em] text-primary uppercase">
+                      Deliver here
+                    </span>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -169,43 +181,91 @@ export function AddressBook() {
                   >
                     Delete
                   </Button>
-                </span>
-              </Card>
+                </div>
+              </article>
             </li>
           ))}
         </ul>
       )}
 
-      <Card className="p-6">
-        <form onSubmit={add} className="flex flex-col gap-3" aria-labelledby="add-address">
-          <h2 id="add-address" className="font-display text-lg text-text-primary">
-            Add an address
-          </h2>
-          <Field label="Label" value={form.label} onChange={set('label')} required />
+      <form
+        onSubmit={add}
+        className="account-add-panel flex flex-col gap-3 p-5 sm:p-6"
+        aria-labelledby="add-address"
+      >
+        <h2 id="add-address" className="font-body text-[12.5px] font-bold text-primary">
+          + Add a new address
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Label"
+            value={form.label}
+            onChange={set('label')}
+            required
+            inputClassName="account-input"
+          />
           <Field
             label="Recipient name"
             value={form.recipientName}
             onChange={set('recipientName')}
             required
+            inputClassName="account-input"
           />
-          <Field label="Address line 1" value={form.line1} onChange={set('line1')} required />
-          <Field label="Address line 2" value={form.line2} onChange={set('line2')} />
-          <Field label="City" value={form.city} onChange={set('city')} required />
-          <Field label="State" value={form.state} onChange={set('state')} required />
-          <Field label="PIN code" value={form.pincode} onChange={set('pincode')} required />
-          <Field label="Contact number" value={form.phone} onChange={set('phone')} required />
-          {error !== null ? (
-            <p role="alert" className="font-body text-sm text-danger">
-              {error}
-            </p>
-          ) : null}
-          <div>
-            <Button type="submit" loading={pending} disabled={pending}>
-              Save address
-            </Button>
-          </div>
-        </form>
-      </Card>
+        </div>
+        <Field
+          label="Address line 1"
+          value={form.line1}
+          onChange={set('line1')}
+          required
+          inputClassName="account-input"
+        />
+        <Field
+          label="Address line 2"
+          value={form.line2}
+          onChange={set('line2')}
+          inputClassName="account-input"
+        />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field
+            label="City"
+            value={form.city}
+            onChange={set('city')}
+            required
+            inputClassName="account-input"
+          />
+          <Field
+            label="State"
+            value={form.state}
+            onChange={set('state')}
+            required
+            inputClassName="account-input"
+          />
+          <Field
+            label="PIN code"
+            value={form.pincode}
+            onChange={set('pincode')}
+            required
+            inputClassName="account-input"
+          />
+        </div>
+        <Field
+          label="Contact number"
+          value={form.phone}
+          onChange={set('phone')}
+          required
+          inputClassName="account-input"
+        />
+        {error !== null ? (
+          <p role="alert" className="font-body text-sm text-danger">
+            {error}
+          </p>
+        ) : null}
+        <div>
+          <Button type="submit" loading={pending} disabled={pending}>
+            Save address
+          </Button>
+        </div>
+      </form>
     </section>
   );
 }

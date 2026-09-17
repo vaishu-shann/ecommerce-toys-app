@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 
-import { Card } from '@romp/ui';
-
 import { useAuth } from '@/lib/auth-context';
 import { content } from '@/lib/store';
 import { useNotifications } from '@/lib/use-notifications';
 
+import { AccountEmpty, AccountHeading } from './AccountHeading';
 import { SignedOut } from './SignedOut';
 
 /**
@@ -29,17 +28,12 @@ export function NotificationsFeed() {
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="notifications-heading">
-      <h1 id="notifications-heading" className="font-display text-2xl text-text-primary">
-        Notifications
-      </h1>
+      <AccountHeading id="notifications-heading">Notifications</AccountHeading>
 
       {notifications.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="font-display text-base text-text-primary">{empty.title}</p>
-          <p className="mt-1 font-body text-sm text-text-muted">{empty.body}</p>
-        </Card>
+        <AccountEmpty title={empty.title} body={empty.body} />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {notifications.map((notification) => (
             <li key={notification.id}>
               <Link
@@ -47,13 +41,13 @@ export function NotificationsFeed() {
                 onClick={() => {
                   markRead(notification.id);
                 }}
-                className="flex flex-col gap-0.5 rounded-md border border-border bg-surface px-4 py-3 hover:border-border-strong"
+                className="account-panel flex flex-col gap-1 p-5 hover:border-border-strong"
               >
                 <span className="flex items-center gap-2">
                   {!notification.read ? (
-                    <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
+                    <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-primary" />
                   ) : null}
-                  <span className="font-body font-semibold text-text-primary">
+                  <span className="font-body text-[13.5px] font-bold text-text-primary">
                     {notification.title}
                   </span>
                 </span>

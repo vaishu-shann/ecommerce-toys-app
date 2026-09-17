@@ -22,7 +22,14 @@ import { firestoreClient } from '@/lib/firebase-client';
  * affordance rather than a control that silently does nothing. The whole component renders only when
  * the store has the wishlist feature on; the page gates it.
  */
-export function WishlistHeart({ productId }: { readonly productId: string }) {
+export function WishlistHeart({
+  productId,
+  layout = 'icon',
+}: {
+  readonly productId: string;
+  /** Icon-only on compact surfaces; labelled chip on the PDP buy box. */
+  readonly layout?: 'icon' | 'chip';
+}) {
   const { uid, ready } = useAuth();
   const [saved, setSaved] = useState<boolean | null>(null);
   const [pending, setPending] = useState(false);
@@ -46,15 +53,23 @@ export function WishlistHeart({ productId }: { readonly productId: string }) {
     };
   }, [uid, productId]);
 
+  const chipClass =
+    'inline-flex min-h-11 items-center gap-2 rounded-pill border border-border-strong px-4 font-body text-sm font-bold tracking-[0.12em] text-text-primary uppercase hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring';
+
   // Signed out (or auth not yet resolved): a link to sign in, returning to this product.
   if (!ready || uid === null) {
     return (
       <a
         href={`/account/sign-in?next=${encodeURIComponent(`/p/${productId}`)}`}
         aria-label="Sign in to save this toy"
-        className="inline-flex size-11 items-center justify-center rounded-md text-text-primary hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        className={
+          layout === 'chip'
+            ? chipClass
+            : 'inline-flex size-11 items-center justify-center rounded-md text-text-primary hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring'
+        }
       >
         <HeartIcon filled={false} />
+        {layout === 'chip' ? <span>Save</span> : null}
       </a>
     );
   }
@@ -78,9 +93,27 @@ export function WishlistHeart({ productId }: { readonly productId: string }) {
       });
   };
 
+  const label = saved === true ? 'Remove from saved toys' : 'Save this toy';
+
+  if (layout === 'chip') {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={saved === true}
+        disabled={pending || saved === null}
+        onClick={toggle}
+        className={`${chipClass} disabled:opacity-50 disabled:pointer-events-none`}
+      >
+        <HeartIcon filled={saved === true} />
+        <span>Save</span>
+      </button>
+    );
+  }
+
   return (
     <IconButton
-      label={saved === true ? 'Remove from saved toys' : 'Save this toy'}
+      label={label}
       aria-pressed={saved === true}
       disabled={pending || saved === null}
       onClick={toggle}

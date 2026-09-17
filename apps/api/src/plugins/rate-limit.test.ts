@@ -55,6 +55,13 @@ describe('createRateLimiter', () => {
     }).not.toThrow();
   });
 
+  it('does not limit when skip is set (Auth emulator)', () => {
+    const limiter = createRateLimiter(() => 0, { skip: true });
+    expect(() => {
+      for (let i = 0; i < 20; i += 1) limiter.consume('k', rule);
+    }).not.toThrow();
+  });
+
   it('sweep drops expired windows', () => {
     let now = 0;
     const limiter = createRateLimiter(() => now);

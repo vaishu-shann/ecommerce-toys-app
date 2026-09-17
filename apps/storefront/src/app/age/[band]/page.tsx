@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
+import { ListingPageSkeleton } from '@/components/ListingSkeleton';
 import { ListingView } from '@/components/ListingView';
-import { ProductGridSkeleton } from '@/components/ProductGrid';
 import { content } from '@/lib/store';
 
 /**
@@ -35,10 +35,14 @@ function findBand(value: string): (typeof content.ageBands)[number] | undefined 
   return content.ageBands.find((band) => band.value === value);
 }
 
+function ageTitle(label: string): string {
+  return `Ages ${label}`;
+}
+
 export async function generateMetadata({ params }: AgePageProps): Promise<Metadata> {
   const { band } = await params;
   const configured = findBand(band);
-  return { title: configured?.label ?? 'Age' };
+  return { title: configured !== undefined ? ageTitle(configured.label) : 'Age' };
 }
 
 export default async function AgePage({ params, searchParams }: AgePageProps) {
@@ -48,13 +52,22 @@ export default async function AgePage({ params, searchParams }: AgePageProps) {
   const configured = findBand(band);
   if (configured === undefined) notFound();
 
+  const title = ageTitle(configured.label);
+
   return (
-    <Suspense fallback={<ProductGridSkeleton />}>
+    <Suspense fallback={<ListingPageSkeleton />}>
       <ListingView
-        title={configured.label}
+        title={title}
         basePath={`/age/${configured.value}`}
         searchParams={resolvedSearchParams}
         fixedFilter={{ ageBands: [configured.value] }}
+        lockedAge={configured.value}
+        kicker={configured.label}
+        crumbs={[
+          { label: content.product.breadcrumbHome, href: '/' },
+          { label: content.home.ageSectionTitle, href: '/' },
+          { label: title },
+        ]}
       />
     </Suspense>
   );

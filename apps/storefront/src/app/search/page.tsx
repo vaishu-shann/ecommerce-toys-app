@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 
 import { ListingView } from '@/components/ListingView';
 import { ProductGridSkeleton } from '@/components/ProductGrid';
+import { content } from '@/lib/store';
 
 /**
  * Prefix search: `/search?q=`.
@@ -35,7 +36,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <Suspense fallback={<ProductGridSkeleton />}>
-      <ListingView title={title} basePath="/search" searchParams={resolved} />
+      <ListingView
+        title={title}
+        basePath="/search"
+        searchParams={resolved}
+        fixedFilter={{ categorySlugs: [] }}
+        crumbs={[
+          { label: content.product.breadcrumbHome, href: '/' },
+          { label: title },
+        ]}
+      />
     </Suspense>
   );
 }

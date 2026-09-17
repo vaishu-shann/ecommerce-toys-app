@@ -74,6 +74,20 @@ describe('ProductCard', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
+  it('fills an empty cover with a supplied placeholder image', () => {
+    const { container } = render(
+      <ProductCard
+        product={aSummary({ cover: null })}
+        placeholderSrc="https://img.example.test/toy.jpg"
+      />,
+    );
+
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      'https://img.example.test/toy.jpg',
+    );
+  });
+
   it('marks the image as priority only when told to', () => {
     // The LCP row is preloaded; the rest lazy-load. Priority on everything defeats itself.
     const { rerender } = render(<ProductCard product={aSummary()} priority />);
@@ -145,6 +159,12 @@ describe('ProductGrid', () => {
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
+
+  it('uses three columns on listing so a row holds at least three cards', () => {
+    const { container } = render(<ProductGrid products={products} columns={3} />);
+
+    expect(container.querySelector('ul')?.className).toMatch(/md:grid-cols-3/u);
+  });
 });
 
 describe('ProductGridSkeleton', () => {
@@ -170,18 +190,18 @@ describe('ProductRail', () => {
         title="Featured"
         products={[aSummary()]}
         headingId="featured"
-        seeAllHref="/c/all"
+        seeAllHref="/listing"
       />,
     );
 
     expect(screen.getByRole('heading', { name: 'Featured' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'See all' })).toHaveAttribute('href', '/c/all');
+    expect(screen.getByRole('link', { name: /View all/u })).toHaveAttribute('href', '/listing');
   });
 
   it('omits the see-all link when there is no target', () => {
     render(<ProductRail title="Featured" products={[aSummary()]} headingId="featured" />);
 
-    expect(screen.queryByRole('link', { name: 'See all' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /View all/u })).not.toBeInTheDocument();
   });
 });
 
@@ -207,7 +227,7 @@ describe('Pagination', () => {
 
   it('offers a next link that preserves the current params and adds the cursor', () => {
     render(<Pagination basePath="/c/wooden" params={base} nextCursor="CURSOR" hasCursor={false} />);
-    const next = screen.getByRole('link', { name: 'Next page' });
+    const next = screen.getByRole('link', { name: 'Next' });
 
     expect(next).toHaveAttribute('href', expect.stringContaining('sort=price_asc'));
     expect(next).toHaveAttribute('href', expect.stringContaining('cursor=CURSOR'));

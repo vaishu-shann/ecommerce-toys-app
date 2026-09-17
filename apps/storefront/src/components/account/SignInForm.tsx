@@ -47,10 +47,18 @@ export function SignInForm({ next }: { readonly next?: string }) {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4" aria-labelledby="signin-heading">
-      <h1 id="signin-heading" className="font-display text-2xl text-text-primary">
-        Sign in
-      </h1>
+    <form onSubmit={submit} className="flex flex-col gap-6" aria-labelledby="signin-heading">
+      <header className="flex flex-col gap-2">
+        <p className="font-body text-[11px] font-extrabold tracking-[0.18em] text-primary uppercase">
+          Welcome back
+        </p>
+        <h1
+          id="signin-heading"
+          className="font-display text-4xl leading-none tracking-tight text-text-primary uppercase"
+        >
+          Sign in
+        </h1>
+      </header>
 
       <Field
         label="Email or mobile number"
@@ -61,6 +69,7 @@ export function SignInForm({ next }: { readonly next?: string }) {
           setIdentifier(event.target.value);
         }}
         required
+        inputClassName="auth-input"
       />
       <Field
         label="Password"
@@ -71,21 +80,25 @@ export function SignInForm({ next }: { readonly next?: string }) {
           setPassword(event.target.value);
         }}
         required
+        inputClassName="auth-input"
       />
 
       {error !== null ? (
-        <p role="alert" className="font-body text-sm text-danger">
+        <p role="alert" className="-mt-1 font-body text-sm text-danger">
           {error}
         </p>
       ) : null}
 
-      <Button type="submit" loading={pending} disabled={pending}>
+      <Button type="submit" loading={pending} disabled={pending} fullWidth size="lg" className="auth-submit">
         Sign in
       </Button>
 
-      <p className="font-body text-sm text-text-muted">
+      <p className="text-center font-body text-sm text-text-muted">
         New here?{' '}
-        <Link href="/account/register" className="text-accent underline">
+        <Link
+          href="/account/register"
+          className="font-semibold text-primary underline-offset-4 hover:underline"
+        >
           Create an account
         </Link>
       </p>

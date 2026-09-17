@@ -144,3 +144,38 @@ export function formatStatusRow(name, verdict, url) {
 export function allPassed(results) {
   return results.every((r) => r.verdict.ok);
 }
+
+/**
+ * True when the probe reached an HTTP server — any status, including 404.
+ * Emulators (Auth, Firestore) often answer non-200 on `/`; connection refused
+ * is the only "not ready" signal we care about before seeding.
+ */
+export function httpReached(raw) {
+  return raw !== undefined && raw !== null && typeof raw.status === 'number';
+}
+
+/**
+ * Windows cannot `spawn('firebase')` — npm/pnpm shims are `firebase.cmd` (same for pnpm/npx).
+ * Unix keeps the bare name. Already-suffixed names are left alone.
+ */
+export function cliExecutable(name, platform = process.platform) {
+  if (platform === 'win32' && !/\.(cmd|bat|exe)$/i.test(name)) {
+    return `${name}.cmd`;
+  }
+  return name;
+}
+
+/**
+ * Put `node_modules/.bin` first on PATH so local firebase-tools / pnpm shims resolve even
+ * when this script is not launched through a pnpm script (which would have done this).
+ */
+export function withLocalBinPath(env, binDir, platform = process.platform) {
+  const delimiter = platform === 'win32' ? ';' : ':';
+  const current = env.PATH ?? env.Path ?? '';
+  const prefix = `${binDir}${delimiter}`;
+  const next = current === binDir || current.startsWith(prefix) ? current : `${prefix}${current}`;
+  if (platform === 'win32') {
+    return { ...env, PATH: next, Path: next };
+  }
+  return { ...env, PATH: next };
+}

@@ -1,18 +1,35 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { OrderView } from '@romp/contracts';
 import { formatMoney } from '@romp/contracts';
-import { Badge, Card } from '@romp/ui';
 
 import { accountApi } from '@/lib/account-api';
 import { useAuth } from '@/lib/auth-context';
-import { content, moneyFormat } from '@/lib/store';
+import { content, locale, mediaUrl, moneyFormat } from '@/lib/store';
 
-import { orderStatusLabel, orderStatusTone } from './order-view';
+import { AccountEmpty, AccountHeading } from './AccountHeading';
+import {
+  displayHumanId,
+  formatPlacedDate,
+  matchesOrderFilter,
+  orderEtaCopy,
+  orderLineSummary,
+  orderPrimaryCta,
+  orderProgressChip,
+  paymentMethodLabel,
+  type OrderListFilter,
+} from './order-view';
 import { SignedOut } from './SignedOut';
+
+const FILTERS: readonly { id: OrderListFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'transit', label: 'In transit' },
+  { id: 'returns', label: 'Returns' },
+];
 
 /**
  * The customer's order history — their own orders, newest first, each linking to its detail.
@@ -23,6 +40,7 @@ import { SignedOut } from './SignedOut';
 export function OrderHistory() {
   const { uid, ready } = useAuth();
   const [orders, setOrders] = useState<readonly OrderView[] | null>(null);
+  const [filter, setFilter] = useState<OrderListFilter>('all');
 
   useEffect(() => {
     if (uid === null) {
@@ -39,6 +57,11 @@ export function OrderHistory() {
       });
   }, [uid]);
 
+  const visible = useMemo(
+    () => (orders === null ? [] : orders.filter((order) => matchesOrderFilter(order, filter))),
+    [orders, filter],
+  );
+
   if (!ready) return <p className="font-body text-text-muted">Loading…</p>;
   if (uid === null)
     return <SignedOut next="/account/orders" message="Sign in to see your orders." />;
@@ -47,44 +70,108 @@ export function OrderHistory() {
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="orders-heading">
-      <h1 id="orders-heading" className="font-display text-2xl text-text-primary">
+      <AccountHeading
+        id="orders-heading"
+        actions={
+          orders !== null && orders.length > 0 ? (
+            <div className="account-filter-row" role="group" aria-label="Filter orders">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="account-filter"
+                  aria-pressed={filter === item.id}
+                  onClick={() => {
+                    setFilter(item.id);
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : null
+        }
+      >
         Your orders
-      </h1>
+      </AccountHeading>
 
       {orders === null ? (
         <p className="font-body text-text-muted">Loading…</p>
       ) : orders.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="font-display text-base text-text-primary">{empty.title}</p>
-          <p className="mt-1 font-body text-sm text-text-muted">{empty.body}</p>
-        </Card>
+        <AccountEmpty title={empty.title} body={empty.body} />
+      ) : visible.length === 0 ? (
+        <AccountEmpty
+          title="Nothing in this view"
+          body="Try All to see every order, or place a new one from Explore."
+        />
       ) : (
-        <ul className="flex flex-col gap-2">
-          {orders.map((order) => (
+        <ul className="flex flex-col gap-3">
+          {visible.map((order) => (
             <li key={order.orderId}>
-              <Link
-                href={`/account/orders/${order.orderId}`}
-                className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-4 py-3 hover:border-border-strong"
-              >
-                <span className="flex flex-col">
-                  <span className="font-body font-semibold text-text-primary">{order.humanId}</span>
-                  <span className="font-body text-sm text-text-muted">
-                    {order.items.length} item{order.items.length === 1 ? '' : 's'}
-                  </span>
-                </span>
-                <span className="flex items-center gap-3">
-                  <span className="font-body text-sm text-text-primary">
-                    {formatMoney(order.amounts.totalMinor, moneyFormat)}
-                  </span>
-                  <Badge tone={orderStatusTone(order.status)}>
-                    {orderStatusLabel(order.status)}
-                  </Badge>
-                </span>
-              </Link>
+              <OrderCard order={order} />
             </li>
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function OrderCard({ order }: { readonly order: OrderView }) {
+  const chip = orderProgressChip(order);
+  const cta = orderPrimaryCta(order);
+  const detailHref = `/account/orders/${order.orderId}`;
+  const first = order.items[0];
+  const thumb = mediaUrl(first?.imagePath ?? null);
+  const letter = (first?.name ?? 'O').slice(0, 1);
+
+  return (
+    <article className="account-order">
+      <header className="account-order-head">
+        <dl className="account-order-meta">
+          <div>
+            <dt>Order</dt>
+            <dd>
+              <Link href={detailHref}>{displayHumanId(order.humanId)}</Link>
+            </dd>
+          </div>
+          <div>
+            <dt>Placed</dt>
+            <dd>{formatPlacedDate(order.createdAt, locale.locale)}</dd>
+          </div>
+          <div>
+            <dt>Total</dt>
+            <dd>{formatMoney(order.amounts.totalMinor, moneyFormat)}</dd>
+          </div>
+          <div>
+            <dt>Paid by</dt>
+            <dd>{paymentMethodLabel(order.payment.method)}</dd>
+          </div>
+        </dl>
+        <span className={`account-chip account-chip--${chip.tone}`}>{chip.label}</span>
+      </header>
+
+      <div className="account-order-body">
+        <div className="account-thumb">
+          {thumb === null ? (
+            <span aria-hidden="true">{letter}</span>
+          ) : (
+            <Image src={thumb} alt="" width={56} height={56} className="size-full object-cover" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="account-order-items">{orderLineSummary(order)}</p>
+          <p className="account-eta">{orderEtaCopy(order, moneyFormat)}</p>
+        </div>
+        <div className="account-order-actions">
+          <Link href={detailHref} className="account-btn-ghost">
+            Invoice
+          </Link>
+          <Link href={cta.href} className="account-btn-lime">
+            {cta.label}
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }

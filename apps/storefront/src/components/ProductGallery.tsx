@@ -1,25 +1,26 @@
 'use client';
 
-import Image from 'next/image';
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-import { InitialTile, cn } from '@romp/ui';
+import { Badge, cn } from '@romp/ui';
+
+import { HOME_PLACEHOLDERS, homePlaceholder, isHomePlaceholder } from '@/lib/home-placeholders';
+
+function slideFit(url: string): string {
+  return isHomePlaceholder(url) ? 'object-contain' : 'object-cover';
+}
 
 /**
  * The product image gallery.
  *
- * A client island because selecting a thumbnail swaps the main image, which is state. It
- * is small and self-contained: the server resolves every media path to a URL and passes
- * the list in, so this component holds no knowledge of Storage or the media base — only
- * which image is currently shown.
+ * A client island because selecting a thumbnail scrolls the main frame, which is state.
+ * The server resolves every media path to a URL and passes the list in, so this
+ * component holds no knowledge of Storage — only which slide is current.
  *
- * Layout-shift-free by construction: the main frame is a fixed square that reserves its
- * space before any image loads, the same discipline the listing cards use. The cover is
- * `priority` because on a PDP it is the LCP element; the rest are lazy.
- *
- * Accessible as a set of controls: each thumbnail is a real button with the image's alt
- * text as its accessible name, and the selected one carries `aria-current`. A product
- * with a single image renders just the frame, with no thumbnail row to tab through.
+ * When a product has no photography yet, the four side squares and the main frame fill
+ * with the same shop-art placeholders the home page uses. Real covers still win and are
+ * listed first. The main stage is a snap-scrolling strip, so a click on a thumb *scrolls*
+ * the matching photo into view rather than popping a new image in place.
  */
 export interface GalleryImage {
   readonly url: string;
@@ -31,64 +32,159 @@ export interface GalleryImage {
 
 export interface ProductGalleryProps {
   readonly images: readonly GalleryImage[];
-  /** The product name, for the placeholder shown when there is no photography yet. */
+  /** The product name, for placeholder alt text. */
   readonly productName: string;
+  /** Display-only ribbon from the product document, e.g. "Bestseller". */
+  readonly badge?: string | null;
 }
 
-/** How wide the main image renders, so the browser fetches the right resolution. */
-const MAIN_SIZES = '(min-width: 1024px) 40vw, 100vw';
+/** Visible thumbs before the overflow marker — matches the PDP chrome. */
+const VISIBLE_THUMBS = 4;
 
-export function ProductGallery({ images, productName }: ProductGalleryProps) {
+function placeholderSlide(productName: string, index: number): GalleryImage {
+  return {
+    url: homePlaceholder(index),
+    alt: `${productName} photo ${String(index + 1)}`,
+    width: 800,
+    height: 800,
+    blurhash: null,
+  };
+}
+
+/**
+ * Real product photos first; shop-art fillers make up a full row of four thumbs so the
+ * side column is never a set of empty squares.
+ */
+function resolveSlides(
+  images: readonly GalleryImage[],
+  productName: string,
+): readonly GalleryImage[] {
+  if (images.length >= VISIBLE_THUMBS) return images;
+
+  const extras: GalleryImage[] = [];
+  let slot = 0;
+  while (extras.length + images.length < VISIBLE_THUMBS && slot < HOME_PLACEHOLDERS.length) {
+    const candidate = placeholderSlide(productName, slot);
+    slot += 1;
+    if (images.some((image) => image.url === candidate.url)) continue;
+    extras.push(candidate);
+  }
+  return [...images, ...extras];
+}
+
+function scrollBehavior(): ScrollBehavior {
+  if (typeof window === 'undefined') return 'auto';
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
+
+export function ProductGallery({ images, productName, badge = null }: ProductGalleryProps) {
+  const slides = useMemo(() => resolveSlides(images, productName), [images, productName]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const active = images[activeIndex] ?? images[0] ?? null;
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const safeIndex = Math.min(activeIndex, Math.max(slides.length - 1, 0));
+  const visible = slides.slice(0, VISIBLE_THUMBS);
+  const overflow = slides.length - VISIBLE_THUMBS;
+
+  const showSlide = (index: number) => {
+    setActiveIndex(index);
+    const slide = slideRefs.current[index];
+    if (slide === undefined || slide === null || typeof slide.scrollIntoView !== 'function') {
+      return;
+    }
+    slide.scrollIntoView({
+      behavior: scrollBehavior(),
+      inline: 'start',
+      block: 'nearest',
+    });
+  };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-surface-alt">
-        {active === null ? (
-          // No photography yet — the honest state of a freshly seeded store. A large,
-          // calm placeholder rather than a broken image.
-          <InitialTile name={productName} size="xl" />
-        ) : (
-          <Image
-            key={active.url}
-            src={active.url}
-            alt={active.alt}
-            fill
-            sizes={MAIN_SIZES}
-            priority
-            className="object-cover"
-            {...(active.blurhash != null
-              ? { placeholder: 'blur' as const, blurDataURL: active.blurhash }
-              : {})}
-          />
-        )}
-      </div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+      <ul className="flex gap-2 sm:w-16 sm:flex-col">
+        {visible.map((image, index) => (
+          <li key={`${image.url}-${String(index)}`}>
+            <button
+              type="button"
+              onClick={() => {
+                showSlide(index);
+              }}
+              aria-label={image.alt}
+              aria-current={index === safeIndex ? 'true' : undefined}
+              className={cn(
+                'relative aspect-square w-16 cursor-pointer overflow-hidden rounded-lg bg-surface-alt',
+                isHomePlaceholder(image.url) && 'p-1',
+                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
+                index === safeIndex
+                  ? 'ring-2 ring-primary'
+                  : 'ring-1 ring-border opacity-80 hover:opacity-100',
+              )}
+            >
+              {/* Native img so the thumb is the click target — next/image overlays can eat the hit. */}
+              <img
+                src={image.url}
+                alt=""
+                width={64}
+                height={64}
+                className={cn('pointer-events-none h-full w-full', slideFit(image.url))}
+              />
+            </button>
+          </li>
+        ))}
+        {overflow > 0 ? (
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                showSlide(VISIBLE_THUMBS);
+              }}
+              aria-label={`${String(overflow)} more photos`}
+              className={cn(
+                'flex aspect-square w-16 cursor-pointer items-center justify-center rounded-lg bg-surface-alt font-body text-sm font-bold text-text-muted',
+                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
+                safeIndex >= VISIBLE_THUMBS ? 'ring-2 ring-primary' : 'ring-1 ring-border',
+              )}
+            >
+              +{overflow}
+            </button>
+          </li>
+        ) : null}
+      </ul>
 
-      {images.length > 1 && (
-        <ul className="flex flex-wrap gap-2">
-          {images.map((image, index) => (
-            <li key={image.url}>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveIndex(index);
-                }}
-                aria-current={index === activeIndex ? 'true' : undefined}
-                className={cn(
-                  'relative aspect-square w-16 overflow-hidden rounded-md bg-surface-alt',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
-                  index === activeIndex
-                    ? 'ring-2 ring-border-strong'
-                    : 'ring-1 ring-border opacity-80 hover:opacity-100',
-                )}
-              >
-                <Image src={image.url} alt={image.alt} fill sizes="64px" className="object-cover" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div
+        className={cn(
+          'relative flex aspect-square min-w-0 flex-1 overflow-x-auto overflow-y-hidden rounded-lg bg-surface-alt',
+          'snap-x snap-mandatory scroll-smooth motion-reduce:scroll-auto',
+          '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        )}
+      >
+        {badge !== null && badge !== '' ? (
+          <span className="absolute top-4 left-4 z-10">
+            <Badge tone="primary">{badge}</Badge>
+          </span>
+        ) : null}
+
+        {slides.map((image, index) => (
+          <div
+            key={`${image.url}-slide-${String(index)}`}
+            ref={(node) => {
+              slideRefs.current[index] = node;
+            }}
+            className={cn(
+              'relative h-full min-w-full shrink-0 snap-start snap-always',
+              isHomePlaceholder(image.url) && 'p-8',
+            )}
+          >
+            <img
+              src={image.url}
+              alt={index === safeIndex ? image.alt : ''}
+              width={image.width}
+              height={image.height}
+              fetchPriority={index === 0 ? 'high' : 'low'}
+              className={cn('h-full w-full', slideFit(image.url))}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

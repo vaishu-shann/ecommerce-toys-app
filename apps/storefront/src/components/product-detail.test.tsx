@@ -80,7 +80,7 @@ describe('VariantSelector', () => {
       />,
     );
 
-    expect(screen.getByText(/1,299/u)).toBeInTheDocument();
+    expect(screen.getAllByText(/1,299/u).length).toBeGreaterThan(0);
     expect(screen.getByText(/1,499/u)).toBeInTheDocument();
   });
 
@@ -113,7 +113,7 @@ describe('VariantSelector', () => {
 
     // Selecting "Large" swaps the displayed price.
     await user.click(screen.getByText('Large'));
-    expect(screen.getByText(/1,999/u)).toBeInTheDocument();
+    expect(screen.getAllByText(/1,999/u).length).toBeGreaterThan(0);
   });
 
   it('disables add-to-cart and says so in words when out of stock', () => {
@@ -164,10 +164,26 @@ describe('ProductGallery', () => {
     vi.stubEnv('NEXT_PUBLIC_MEDIA_BASE_URL', 'https://cdn.example.test');
   });
 
-  it('renders a placeholder and no thumbnails when there are no images', () => {
+  it('fills empty photography with four shop-art thumbs', () => {
     render(<ProductGallery images={[]} productName="Wooden blocks" />);
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+
+    const thumbs = screen.getAllByRole('button');
+    expect(thumbs).toHaveLength(4);
+    expect(thumbs[0]).toHaveAttribute('aria-current', 'true');
+    expect(screen.getAllByRole('img').length).toBeGreaterThan(0);
+  });
+
+  it('scrolls the main stage when a side square is clicked', async () => {
+    const user = userEvent.setup();
+    render(<ProductGallery images={[]} productName="Wooden blocks" />);
+
+    const thumbs = screen.getAllByRole('button');
+    const third = thumbs[2];
+    if (third === undefined) throw new Error('expected four thumbs');
+    await user.click(third);
+
+    expect(third).toHaveAttribute('aria-current', 'true');
+    expect(thumbs[0]).not.toHaveAttribute('aria-current');
   });
 
   it('lets a thumbnail switch the main image', async () => {
@@ -194,9 +210,9 @@ describe('ProductGallery', () => {
       />,
     );
 
-    // Two thumbnail buttons for two images.
+    // Two catalogue thumbs, then shop-art fillers so the side column stays four squares.
     const thumbs = screen.getAllByRole('button');
-    expect(thumbs).toHaveLength(2);
+    expect(thumbs).toHaveLength(4);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     // The second thumbnail becomes current.

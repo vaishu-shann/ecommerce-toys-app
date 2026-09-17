@@ -68,7 +68,13 @@ export async function buildApp(deps: ApiDeps, options: BuildAppOptions = {}): Pr
     bodyLimit: 1_048_576,
   }) as RompApp;
 
-  const rateLimiter = createRateLimiter(options.now);
+  const rateLimiter = createRateLimiter(options.now, {
+    // The Auth emulator is a local, single-operator surface. Production keeps the
+    // in-process ceilings; here they only get in the way of repeated create-account tries.
+    skip:
+      process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined &&
+      process.env.FIREBASE_AUTH_EMULATOR_HOST !== '',
+  });
   const idempotencyStore = options.idempotencyStore ?? createMemoryIdempotencyStore();
 
   // Expose the shared building blocks to route modules without re-threading them.

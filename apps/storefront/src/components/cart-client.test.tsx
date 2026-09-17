@@ -20,6 +20,10 @@ vi.mock('@/lib/cart-api', () => ({
   CartApiError: class CartApiError extends Error {},
 }));
 
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ uid: null, ready: true }),
+}));
+
 const { CartClient } = await import('./CartClient');
 
 const line = (variantId: string, qty: number) => ({
@@ -65,13 +69,14 @@ describe('CartClient', () => {
     get.mockResolvedValue(view([line('v1', 2)]));
     render(<CartClient />);
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Your bag' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Your bag \(2\)/u })).toBeInTheDocument();
     });
     expect(screen.getByText('Wooden blocks')).toBeInTheDocument();
     // 2 × ₹1,299 = ₹2,598.
     expect(screen.getAllByText(/2,598/u).length).toBeGreaterThan(0);
     // The checkout link appears when there are items.
     expect(screen.getByRole('link', { name: /checkout/iu })).toHaveAttribute('href', '/checkout');
+    expect(screen.getByRole('link', { name: /keep shopping/iu })).toHaveAttribute('href', '/listing');
   });
 
   it('removes a line through the API and re-renders from the returned view', async () => {
@@ -103,7 +108,7 @@ describe('CartClient', () => {
       expect(screen.getByText('Wooden blocks')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('checkbox', { name: /Gift wrap/u }));
+    await user.click(screen.getByRole('button', { name: /Add ₹/u }));
 
     await waitFor(() => {
       expect(setGiftWrap).toHaveBeenCalledWith(true);
@@ -119,14 +124,11 @@ describe('CartClient', () => {
       expect(screen.getByText('Wooden blocks')).toBeInTheDocument();
     });
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: /Quantity of Wooden blocks/u }),
-      '3',
-    );
+    await user.click(screen.getByRole('button', { name: /Increase quantity of Wooden blocks/u }));
 
     await waitFor(() => {
       expect(add).toHaveBeenCalledWith(
-        expect.objectContaining({ variantId: 'v1', qty: 3, mode: 'set' }),
+        expect.objectContaining({ variantId: 'v1', qty: 2, mode: 'set' }),
       );
     });
   });

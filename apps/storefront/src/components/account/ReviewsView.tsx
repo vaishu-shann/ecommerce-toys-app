@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 
 import type { OwnReviewView } from '@romp/contracts';
-import { Badge, Card } from '@romp/ui';
+import { Badge } from '@romp/ui';
 
 import { StarRating } from '@/components/StarRating';
 import { accountApi } from '@/lib/account-api';
 import { useAuth } from '@/lib/auth-context';
 
+import { AccountEmpty, AccountHeading } from './AccountHeading';
 import { SignedOut } from './SignedOut';
 
 /**
@@ -44,24 +45,20 @@ export function ReviewsView() {
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="reviews-heading">
-      <h1 id="reviews-heading" className="font-display text-2xl text-text-primary">
-        Your reviews
-      </h1>
+      <AccountHeading id="reviews-heading">Reviews</AccountHeading>
 
       {reviews === null ? (
         <p className="font-body text-text-muted">Loading…</p>
       ) : reviews.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="font-display text-base text-text-primary">No reviews yet.</p>
-          <p className="mt-1 font-body text-sm text-text-muted">
-            Reviews you write will appear here, including any still awaiting approval.
-          </p>
-        </Card>
+        <AccountEmpty
+          title="No reviews yet."
+          body="Reviews you write will appear here, including any still awaiting approval."
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {reviews.map((review) => (
             <li key={review.id}>
-              <Card className="flex flex-col gap-1 p-4">
+              <article className="account-panel flex flex-col gap-2 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <StarRating
@@ -75,7 +72,7 @@ export function ReviewsView() {
                 <p className="font-body text-sm whitespace-pre-line text-text-secondary">
                   {review.body}
                 </p>
-              </Card>
+              </article>
             </li>
           ))}
         </ul>

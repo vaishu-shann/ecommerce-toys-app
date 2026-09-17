@@ -8,22 +8,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * the real `@romp/core` policy, so a weak password blocks submission before a round trip.
  */
 
-const register = vi.hoisted(() => vi.fn<() => Promise<{ uid: string }>>());
-const signIn = vi.hoisted(() => vi.fn<() => Promise<void>>());
+const register = vi.hoisted(() =>
+  vi.fn<() => Promise<{ uid: string; loginEmail: string; primaryIdentifierType: string }>>(),
+);
+const signIn = vi.hoisted(() => vi.fn<(loginEmail: string, password: string) => Promise<void>>());
 const push = vi.hoisted(() => vi.fn());
 const refresh = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/account-api', () => ({
   accountApi: { register },
   AccountApiError: class AccountApiError extends Error {
+    status: number;
     code: string;
-    constructor(_status: number, code: string, detail: string) {
+    constructor(status: number, code: string, detail: string) {
       super(detail);
+      this.name = 'AccountApiError';
+      this.status = status;
       this.code = code;
     }
   },
 }));
-vi.mock('@/lib/firebase-client', () => ({ signInWithIdentifier: signIn }));
+vi.mock('@/lib/firebase-client', () => ({ signInWithLoginEmail: signIn }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }));
 
 const { RegisterForm } = await import('./RegisterForm');
@@ -34,6 +39,7 @@ beforeEach(() => {
   register.mockReset();
   signIn.mockReset();
   push.mockReset();
+  refresh.mockReset();
 });
 
 async function fill(user: ReturnType<typeof userEvent.setup>, password: string): Promise<void> {
@@ -44,7 +50,11 @@ async function fill(user: ReturnType<typeof userEvent.setup>, password: string):
 
 describe('RegisterForm', () => {
   it('registers, signs in and navigates to the account', async () => {
-    register.mockResolvedValue({ uid: 'cust-1' });
+    register.mockResolvedValue({
+      uid: 'cust-1',
+      loginEmail: 'asha@example.com',
+      primaryIdentifierType: 'email',
+    });
     signIn.mockResolvedValue();
     const user = userEvent.setup();
     render(<RegisterForm />);
@@ -58,7 +68,7 @@ describe('RegisterForm', () => {
       );
     });
     await waitFor(() => {
-      expect(signIn).toHaveBeenCalled();
+      expect(signIn).toHaveBeenCalledWith('asha@example.com', STRONG);
     });
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith('/account');
@@ -77,6 +87,24 @@ describe('RegisterForm', () => {
     await user.click(screen.getByRole('button', { name: 'Create account' }));
 
     expect(await screen.findByText('That is already registered.')).toBeInTheDocument();
+  });
+
+  it('tells the customer to sign in when Auth fails after a created account', async () => {
+    register.mockResolvedValue({
+      uid: 'cust-1',
+      loginEmail: 'asha@example.com',
+      primaryIdentifierType: 'email',
+    });
+    signIn.mockRejectedValue(Object.assign(new Error('network'), { code: 'auth/invalid-api-key' }));
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await fill(user, STRONG);
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(
+      await screen.findByText(/could not reach sign-in/iu),
+    ).toBeInTheDocument();
   });
 
   it('blocks a weak password before any API call', async () => {

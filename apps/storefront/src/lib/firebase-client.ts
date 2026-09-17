@@ -16,6 +16,7 @@ import {
   connectAuthToEmulator,
   connectFirestoreToEmulator,
   emulatorConfig,
+  isEmulatorWired,
 } from './firebase-emulator';
 
 /**
@@ -82,18 +83,65 @@ function webConfig(): WebConfig | null {
   return { apiKey, authDomain, projectId, appId };
 }
 
-let app: FirebaseApp | undefined;
+/**
+ * Survives Next hot reload. Module-level `let`s reset when this file is replaced, but
+ * `getAuth` on the default app may already have talked to production — and the Auth SDK
+ * then refuses `connectAuthEmulator`. Listeners in `AuthProvider` are registered once, so
+ * they must live here too or a later sign-in would succeed on a new Auth object the header
+ * never sees.
+ */
+interface ClientRuntime {
+  app: FirebaseApp | undefined;
+  auth: Auth | undefined;
+  db: Firestore | undefined;
+  emulatorGeneration: number;
+  uidListeners: Set<(uid: string | null) => void>;
+  stopUid: (() => void) | undefined;
+}
+
+function runtime(): ClientRuntime {
+  const owner = globalThis as { __rompFirebase?: ClientRuntime };
+  owner.__rompFirebase ??= {
+    app: undefined,
+    auth: undefined,
+    db: undefined,
+    emulatorGeneration: 0,
+    uidListeners: new Set(),
+    stopUid: undefined,
+  };
+  return owner.__rompFirebase;
+}
+
+function namedApp(config: WebConfig, name: string): FirebaseApp {
+  return getApps().find((candidate) => candidate.name === name) ?? initializeApp(config, name);
+}
+
+function wireAuth(instance: Auth): void {
+  connectAuthToEmulator(instance, (authInstance, url, options) => {
+    connectAuthEmulator(authInstance as Auth, url, options);
+  });
+}
+
+function listenForUid(client: Auth): void {
+  const slot = runtime();
+  slot.stopUid?.();
+  slot.stopUid = onAuthStateChanged(client, (user) => {
+    const uid = user?.uid ?? null;
+    for (const listener of slot.uidListeners) listener(uid);
+  });
+}
 
 /** The memoised client app, or null when no web config is present. */
 export function clientApp(): FirebaseApp | null {
-  if (app !== undefined) return app;
+  const slot = runtime();
+  if (slot.app !== undefined) return slot.app;
   const config = webConfig();
   if (config === null) return null;
-  app = getApps()[0] ?? initializeApp(config);
-  return app;
+  slot.app = emulatorConfig().enabled
+    ? namedApp(config, 'romp-emulator')
+    : (getApps()[0] ?? initializeApp(config));
+  return slot.app;
 }
-
-let db: Firestore | undefined;
 
 /**
  * The memoised client Firestore, or null when the SDK is not configured.
@@ -103,19 +151,15 @@ let db: Firestore | undefined;
  * crashing.
  */
 export function firestoreClient(): Firestore | null {
-  if (db !== undefined) return db;
   const configured = clientApp();
   if (configured === null) return null;
-  db = getFirestore(configured);
-  // In emulator mode, point this Firestore at the local emulator — once, before any read.
-  // A no-op when the flag is off, so production is untouched.
-  connectFirestoreToEmulator(db, (instance, host, port) => {
+  const slot = runtime();
+  if (slot.db === undefined) slot.db = getFirestore(configured);
+  connectFirestoreToEmulator(slot.db, (instance, host, port) => {
     connectFirestoreEmulator(instance as Firestore, host, port);
   });
-  return db;
+  return slot.db;
 }
-
-let auth: Auth | undefined;
 
 /**
  * The memoised client Auth, or null when the SDK is not configured.
@@ -124,16 +168,48 @@ let auth: Auth | undefined;
  * throws if `connectAuthEmulator` runs twice, so every `getAuth` call site in this module
  * goes through here rather than calling `getAuth` directly. A no-op wiring when the flag is
  * off leaves the real Firebase Auth in place.
+ *
+ * When emulator mode turns on after Auth already made a production call (typical Next HMR),
+ * the default app cannot be rewired. A named app is minted instead and uid listeners move
+ * with it, so register → sign-in and the account header share one session.
  */
 function authClient(): Auth | null {
-  if (auth !== undefined) return auth;
-  const configured = clientApp();
-  if (configured === null) return null;
-  auth = getAuth(configured);
-  connectAuthToEmulator(auth, (instance, url, options) => {
-    connectAuthEmulator(instance as Auth, url, options);
-  });
-  return auth;
+  const config = webConfig();
+  if (config === null) return null;
+  const slot = runtime();
+  const useEmulator = emulatorConfig().enabled;
+
+  if (slot.auth === undefined) {
+    const configured = clientApp();
+    if (configured === null) return null;
+    slot.auth = getAuth(configured);
+  }
+
+  if (!useEmulator) return slot.auth;
+
+  try {
+    wireAuth(slot.auth);
+  } catch {
+    return mintEmulatorAuth(config);
+  }
+  if (!isEmulatorWired(slot.auth)) {
+    return mintEmulatorAuth(config);
+  }
+  return slot.auth;
+}
+
+function mintEmulatorAuth(config: WebConfig): Auth {
+  const slot = runtime();
+  slot.emulatorGeneration += 1;
+  const name = `romp-emulator-${String(slot.emulatorGeneration)}`;
+  const fresh = namedApp(config, name);
+  const instance = getAuth(fresh);
+  wireAuth(instance);
+  slot.app = fresh;
+  slot.db = undefined;
+  slot.auth = instance;
+  if (slot.uidListeners.size > 0) listenForUid(instance);
+  return instance;
 }
 
 /**
@@ -168,16 +244,20 @@ export function currentUid(): string | null {
  * a component effect can wire it unconditionally and simply see "signed out" until auth is set up.
  */
 export function onUidChanged(listener: (uid: string | null) => void): () => void {
+  const slot = runtime();
   const client = authClient();
+  slot.uidListeners.add(listener);
   if (client === null) {
     listener(null);
     return () => {
-      /* nothing to unsubscribe */
+      slot.uidListeners.delete(listener);
     };
   }
-  return onAuthStateChanged(client, (user) => {
-    listener(user?.uid ?? null);
-  });
+  if (slot.stopUid === undefined) listenForUid(client);
+  else listener(client.currentUser?.uid ?? null);
+  return () => {
+    slot.uidListeners.delete(listener);
+  };
 }
 
 /** Whether client auth is configured — false in a build with no web config. */
@@ -211,6 +291,21 @@ export async function signInWithIdentifier(
       ? normalizeEmail(identifier)
       : toAuthEmail(normalizePhone(identifier, options.defaultRegion), options.storeId);
 
+  await signInWithEmailAndPassword(client, loginEmail, password);
+}
+
+/**
+ * Signs in with the Auth login email the register API just returned.
+ *
+ * After registration the server is the source of the login alias (real email, or the phone
+ * alias). Using that string rather than re-deriving it from what the customer typed avoids
+ * a mismatch that creates the account and then fails to sign in.
+ */
+export async function signInWithLoginEmail(loginEmail: string, password: string): Promise<void> {
+  const client = authClient();
+  if (client === null) {
+    throw new Error('Sign-in is not available: the store’s web config is not set.');
+  }
   await signInWithEmailAndPassword(client, loginEmail, password);
 }
 

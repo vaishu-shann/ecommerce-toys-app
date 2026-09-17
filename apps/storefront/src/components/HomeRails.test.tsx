@@ -74,7 +74,7 @@ describe('FeaturedRail', () => {
 
     expect(screen.getByRole('heading', { name: 'This season' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Wooden thing/u })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'See all' })).toHaveAttribute('href', '/c/all');
+    expect(screen.getByRole('link', { name: /View all/u })).toHaveAttribute('href', '/listing');
   });
 });
 
@@ -91,7 +91,7 @@ describe('NavCategoryRails', () => {
     expect(screen.getByRole('heading', { name: 'Wooden toys' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Puzzles' })).toBeInTheDocument();
     // One "See all" per rail, each pointing at its own category listing.
-    const seeAll = screen.getAllByRole('link', { name: 'See all' });
+    const seeAll = screen.getAllByRole('link', { name: /View all/u });
     expect(seeAll.map((link) => link.getAttribute('href'))).toEqual(['/c/wooden', '/c/puzzles']);
   });
 

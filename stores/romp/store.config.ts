@@ -172,26 +172,31 @@ export default defineStoreConfig({
   content: {
     home: {
       hero: {
-        eyebrow: 'New this season',
-        headline: 'Toys that grow with them',
+        eyebrow: 'New this week',
+        headline: 'Big play, tiny hands',
         subcopy:
-          'Open-ended, BIS-certified playthings picked for the stage your child is at — and the one they are heading into.',
-        primaryCta: { label: 'Shop by age', href: '/age/3-5' },
-        secondaryCta: { label: 'Browse everything', href: '/c/all' },
+          'Age-matched toys picked by parents and play therapists. Ships next day from Bengaluru, Delhi & Mumbai.',
+        primaryCta: { label: 'Shop by age', href: '/age/0-2' },
+        secondaryCta: { label: 'Gift finder', href: '/listing' },
       },
       promo: {
-        headline: 'Free shipping over ₹1,499',
-        subcopy: 'Dispatched from Bengaluru and Delhi, usually within a day.',
-        cta: { label: 'See what ships fastest', href: '/c/all' },
+        headline: 'Free delivery over ₹1,499 · Pan-India',
+        subcopy: 'Gift wrap + handwritten note ₹99',
+        cta: { label: 'See what ships fastest', href: '/listing' },
+      },
+      sale: {
+        headline: 'Up to 40% off',
+        subcopy: 'Monsoon indoor-play sale',
+        cta: { label: 'Shop sale', href: '/listing' },
       },
       trustBadges: [
-        { title: 'BIS certified', description: 'Every toy carries a current BIS mark.' },
-        { title: 'No small parts under 3', description: 'Age ratings we actually enforce.' },
-        { title: 'Easy 7-day returns', description: 'Unopened, and we arrange the pickup.' },
-        { title: 'Real humans on WhatsApp', description: 'Mon–Sat, and usually within the hour.' },
+        { title: 'BIS certified', description: 'Every toy tested to IS 9873 safety standards.' },
+        { title: 'Age-matched', description: 'Filtered by developmental stage, not guesswork.' },
+        { title: '15-day returns', description: 'Free pickup anywhere we deliver.' },
+        { title: 'Ships next day', description: 'From Bengaluru, Delhi and Mumbai hubs.' },
       ],
-      ageSectionTitle: 'Find it by age',
-      featuredTitle: 'Loved this week',
+      ageSectionTitle: 'Shop by age',
+      featuredTitle: "Parents' picks this month",
       categorySectionTitle: 'Shop by kind of play',
     },
 
@@ -222,12 +227,16 @@ export default defineStoreConfig({
       },
     },
 
+    listing: {
+      title: 'All toys',
+    },
+
     // The age taxonomy itself, not a hardcoded union.
     ageBands: [
-      { value: '0-2', label: '0–2 years', note: 'Grasp, stack, mouth-safe' },
-      { value: '3-5', label: '3–5 years', note: 'Pretend play and first puzzles' },
-      { value: '6-8', label: '6–8 years', note: 'Building, rules, making things' },
-      { value: '9-12', label: '9–12 years', note: 'Models, logic and real skills' },
+      { value: '0-2', label: '0–2', note: 'Sensory, bath, soft' },
+      { value: '3-5', label: '3–5', note: 'Pretend play, first puzzles' },
+      { value: '6-8', label: '6–8', note: 'Building, science, games' },
+      { value: '9-12', label: '9–12', note: 'RC, robotics, strategy' },
     ],
 
     categories: [
@@ -304,7 +313,7 @@ export default defineStoreConfig({
         {
           title: 'Shop',
           links: [
-            { label: 'All toys', href: '/c/all' },
+            { label: 'All toys', href: '/listing' },
             { label: 'Wooden toys', href: '/c/wooden' },
             { label: 'Puzzles', href: '/c/puzzles' },
             { label: 'Building & STEM', href: '/c/building-stem' },

@@ -1,18 +1,18 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import type { MeResponse } from '@romp/contracts';
 import { assessPassword } from '@romp/core';
-import { Button, Card, Field } from '@romp/ui';
+import { Button, Field } from '@romp/ui';
 
 import { AccountApiError, accountApi } from '@/lib/account-api';
 import { useAuth } from '@/lib/auth-context';
 import { signOutCustomer } from '@/lib/firebase-client';
 import { brand } from '@/lib/store';
 
+import { AccountHeading } from './AccountHeading';
 import { SignedOut } from './SignedOut';
 
 /**
@@ -55,7 +55,7 @@ export function AccountDashboard() {
     return <p className="font-body text-text-muted">Loading…</p>;
   }
   if (uid === null) {
-    return <SignedOut next="/account" />;
+    return <SignedOut next="/account/profile" message="Sign in to see your account." />;
   }
 
   const saveName = (event: React.SyntheticEvent): void => {
@@ -111,49 +111,19 @@ export function AccountDashboard() {
   };
 
   return (
-    <section className="flex flex-col gap-6" aria-labelledby="account-heading">
-      <div className="flex items-center justify-between">
-        <h1 id="account-heading" className="font-display text-2xl text-text-primary">
-          Your account
-        </h1>
-        <Button variant="ghost" onClick={signOut}>
-          Sign out
-        </Button>
-      </div>
+    <section className="flex flex-col gap-4" aria-labelledby="account-heading">
+      <AccountHeading
+        id="account-heading"
+        actions={
+          <Button variant="ghost" size="sm" onClick={signOut}>
+            Sign out
+          </Button>
+        }
+      >
+        Your profile
+      </AccountHeading>
 
-      <nav aria-label="Account sections">
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {[
-            { href: '/account/orders', label: 'Orders' },
-            { href: '/account/addresses', label: 'Addresses' },
-            { href: '/account/wishlist', label: 'Saved toys' },
-            { href: '/account/reviews', label: 'Reviews' },
-            { href: '/account/notifications', label: 'Notifications' },
-          ].map((link) => (
-            <li key={link.href}>
-              <Card interactive className="h-full">
-                <Link
-                  href={link.href}
-                  className="flex min-h-16 items-center justify-between gap-2 p-4 font-body font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-                >
-                  {link.label}
-                  <svg viewBox="0 0 20 20" className="size-4 text-text-muted" aria-hidden="true" fill="none">
-                    <path
-                      d="M7 4l6 6-6 6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </Link>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <Card className="p-6">
+      <div className="account-panel p-5 sm:p-6">
         <form onSubmit={saveName} className="flex flex-col gap-3">
           <Field
             label="Your name"
@@ -162,6 +132,7 @@ export function AccountDashboard() {
               setDisplayName(event.target.value);
             }}
             required
+            inputClassName="account-input"
           />
           {me !== null ? (
             <p className="font-body text-sm text-text-muted">
@@ -180,9 +151,9 @@ export function AccountDashboard() {
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
 
-      <Card className="p-6">
+      <div className="account-panel p-5 sm:p-6">
         <form onSubmit={changePassword} className="flex flex-col gap-3">
           <h2 className="font-display text-lg text-text-primary">Change password</h2>
           <Field
@@ -194,6 +165,7 @@ export function AccountDashboard() {
               setCurrentPassword(event.target.value);
             }}
             required
+            inputClassName="account-input"
           />
           <Field
             label="New password"
@@ -204,6 +176,7 @@ export function AccountDashboard() {
               setNewPassword(event.target.value);
             }}
             required
+            inputClassName="account-input"
             {...(weak && assessment.suggestions.length > 0
               ? { error: assessment.suggestions[0] }
               : {})}
@@ -224,7 +197,7 @@ export function AccountDashboard() {
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
     </section>
   );
 }

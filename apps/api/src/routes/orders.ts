@@ -28,6 +28,7 @@ import {
 import storeConfig from '@romp/store-config/generated/store-config.json';
 
 import type { RompApp } from '../app';
+import { foldGuestCartIfPresent } from '../cart/fold-guest';
 import { requireAuthHook } from '../plugins/auth';
 import { idempotencyKey, withIdempotency } from '../plugins/idempotency';
 import { RATE_LIMITS, rateLimitKey } from '../plugins/rate-limit';
@@ -47,6 +48,8 @@ import { requireUser } from '../request-context';
 export function registerOrderRoutes(app: RompApp): void {
   const { context } = app.deps;
   const orderPrefix = storeConfig.brand.orderPrefix;
+  const secret = app.deps.config.cartCookieSecret;
+  const maxQtyPerLine = storeConfig.commerce.maxQtyPerLine;
 
   const limit = (request: FastifyRequest): void => {
     app.rateLimiter.consume(rateLimitKey(request, 'placeOrder'), RATE_LIMITS.placeOrder);
@@ -72,6 +75,10 @@ export function registerOrderRoutes(app: RompApp): void {
     const uid = requireUser(request);
     const key = idempotencyKey(request, true);
     const body = parseOrThrow(PlaceOrderRequestSchema, request.body);
+
+    // Same leftover-guest fold as quote: placement reads `carts/{uid}` only, so a bag filled
+    // before sign-in must land on that document before reserve-and-place runs.
+    await foldGuestCartIfPresent(request, reply, context, uid, secret, maxQtyPerLine);
 
     // Live, runtime-editable fees. Absent means the store was never seeded; an order cannot be
     // priced, and quoting stale config fees would charge amounts no longer in force.

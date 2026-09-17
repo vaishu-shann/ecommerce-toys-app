@@ -249,7 +249,15 @@ function normalizeIdentifier(
  * the same 409 that does not echo which.
  */
 function isEmailAlreadyExists(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const code = (error as { code?: unknown }).code;
+  const code = firebaseAuthCode(error);
   return code === 'auth/email-already-exists' || code === 'auth/phone-number-already-exists';
+}
+
+/** Reads the Auth error code from either the public `code` or Admin SDK `errorInfo`. */
+function firebaseAuthCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const record = error as { code?: unknown; errorInfo?: { code?: unknown } };
+  if (typeof record.code === 'string') return record.code;
+  if (typeof record.errorInfo?.code === 'string') return record.errorInfo.code;
+  return null;
 }

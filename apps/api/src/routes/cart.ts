@@ -8,7 +8,6 @@ import {
   CartMutationError,
   addOrUpdateCartItem,
   getAvailability,
-  mergeAnonymousCart,
   readCart,
   removeCartItem,
   setGiftWrap,
@@ -24,11 +23,11 @@ import storeConfig from '@romp/store-config/generated/store-config.json';
 import type { RompApp } from '../app';
 import {
   cartCookieHeader,
-  clearedCartCookieHeader,
   newCartId,
   readCartCookie,
   verifyCartCookie,
 } from '../cart/cookie';
+import { foldGuestCartIfPresent } from '../cart/fold-guest';
 import { requireAuthHook } from '../plugins/auth';
 import { RATE_LIMITS, rateLimitKey } from '../plugins/rate-limit';
 import { requireUser } from '../request-context';
@@ -39,10 +38,11 @@ import { requireUser } from '../request-context';
  * A cart belongs to whoever holds it: a signed-in customer (keyed by uid) or a guest (keyed by an
  * opaque cart ID in a signed cookie). These routes resolve which — a verified token wins, else the
  * cookie, else a fresh guest cart whose cookie is planted on the response — and hand a `CartRef` to
- * the write repo. They take no auth hook (a guest may shop), except `merge`, which needs a signed-in
- * user to fold a guest cart into. Every response is a `CartView`: the lines with a refreshed
- * `inStock` and a recomputed subtotal, which is display-only — the charged amount is the checkout
- * quote's.
+ * the write repo. A leftover guest cookie on a signed-in request is folded into the uid cart first
+ * (the same write as `POST /v1/cart/merge`), so a bag filled before sign-in is not stranded. They
+ * take no auth hook (a guest may shop), except `merge`, which needs a signed-in user. Every
+ * response is a `CartView`: the lines with a refreshed `inStock` and a recomputed subtotal, which
+ * is display-only — the charged amount is the checkout quote's.
  */
 export function registerCartRoutes(app: RompApp): void {
   const { context } = app.deps;
@@ -56,14 +56,24 @@ export function registerCartRoutes(app: RompApp): void {
   /**
    * Resolves the cart to act on, and whether a cookie must be set.
    *
-   * A signed-in caller uses their uid cart and no cookie changes. A guest uses the cart ID from a
-   * valid signed cookie, or a freshly minted one — in which case `setCookie` carries the ID the
-   * response must plant so the next request finds the same cart.
+   * A signed-in caller uses their uid cart. If they still hold a guest cookie from before sign-in,
+   * that cart is folded in first and the cookie is cleared. A guest uses the cart ID from a valid
+   * signed cookie, or a freshly minted one — in which case `setCookie` carries the ID the response
+   * must plant so the next request finds the same cart.
    */
-  const resolveCart = (
+  const resolveCart = async (
     request: FastifyRequest,
-  ): { readonly ref: CartRef; readonly setCookie: string | null } => {
+    reply: FastifyReply,
+  ): Promise<{ readonly ref: CartRef; readonly setCookie: string | null }> => {
     if (request.caller.kind === 'customer' || request.caller.kind === 'operator') {
+      await foldGuestCartIfPresent(
+        request,
+        reply,
+        context,
+        request.caller.uid,
+        secret,
+        maxQtyPerLine,
+      );
       return { ref: { kind: 'user', uid: request.caller.uid }, setCookie: null };
     }
     const existing = verifyCartCookie(readCartCookie(request.headers.cookie), secret);
@@ -128,7 +138,7 @@ export function registerCartRoutes(app: RompApp): void {
 
   // --- read ---------------------------------------------------------------
   app.get('/v1/cart', async (request, reply) => {
-    const { ref, setCookie } = resolveCart(request);
+    const { ref, setCookie } = await resolveCart(request, reply);
     const cart = await readCart(context, ref);
     await sendView(reply, cart, setCookie);
   });
@@ -137,7 +147,7 @@ export function registerCartRoutes(app: RompApp): void {
   app.post('/v1/cart/items', async (request, reply) => {
     limit(request);
     const body = parseOrThrow(AddCartItemRequestSchema, request.body);
-    const { ref, setCookie } = resolveCart(request);
+    const { ref, setCookie } = await resolveCart(request, reply);
 
     let cart;
     try {
@@ -161,7 +171,7 @@ export function registerCartRoutes(app: RompApp): void {
   app.delete('/v1/cart/items/:variantId', async (request, reply) => {
     limit(request);
     const { variantId } = request.params as { variantId: string };
-    const { ref, setCookie } = resolveCart(request);
+    const { ref, setCookie } = await resolveCart(request, reply);
 
     const cart = await removeCartItem(context, ref, variantId);
     plantCookie(reply, setCookie);
@@ -173,7 +183,7 @@ export function registerCartRoutes(app: RompApp): void {
   app.patch('/v1/cart', async (request, reply) => {
     limit(request);
     const body = parseOrThrow(UpdateCartRequestSchema, request.body);
-    const { ref, setCookie } = resolveCart(request);
+    const { ref, setCookie } = await resolveCart(request, reply);
 
     const cart = await setGiftWrap(context, ref, body.giftWrap);
     plantCookie(reply, setCookie);
@@ -186,19 +196,11 @@ export function registerCartRoutes(app: RompApp): void {
     limit(request);
     const uid = requireUser(request);
 
-    // The guest cart to fold in is the one the cookie points at. No cookie means nothing to
-    // merge — the response is simply the user's current cart.
-    const anonCartId = verifyCartCookie(readCartCookie(request.headers.cookie), secret);
-    if (anonCartId === null) {
-      const cart = await readCart(context, { kind: 'user', uid });
-      const view = await toView(cart);
-      return reply.code(200).send(view);
-    }
-
-    const merged = await mergeAnonymousCart(context, uid, anonCartId, maxQtyPerLine);
-    // Clear the guest cookie: the guest cart is gone, folded into the account's.
-    reply.header('set-cookie', clearedCartCookieHeader());
-    const view = await toView(merged);
+    // Same fold the other signed-in cart routes run lazily — exposed here so the storefront can
+    // merge on sign-in before the next cart GET, rather than waiting for the first mutation.
+    await foldGuestCartIfPresent(request, reply, context, uid, secret, maxQtyPerLine);
+    const cart = await readCart(context, { kind: 'user', uid });
+    const view = await toView(cart);
     return reply.code(200).send(view);
   });
 }

@@ -4,13 +4,14 @@ import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button, Card } from '@romp/ui';
+import { Button } from '@romp/ui';
 
 import { AccountApiError, accountApi } from '@/lib/account-api';
 import { useAuth } from '@/lib/auth-context';
 import { firestoreClient } from '@/lib/firebase-client';
 import { content } from '@/lib/store';
 
+import { AccountEmpty, AccountHeading } from './AccountHeading';
 import { SignedOut } from './SignedOut';
 
 /**
@@ -63,21 +64,19 @@ export function WishlistView() {
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="wishlist-heading">
-      <h1 id="wishlist-heading" className="font-display text-2xl text-text-primary">
-        Saved toys
-      </h1>
+      <AccountHeading id="wishlist-heading">Wishlist</AccountHeading>
 
       {productIds.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="font-display text-base text-text-primary">{empty.title}</p>
-          <p className="mt-1 font-body text-sm text-text-muted">{empty.body}</p>
-        </Card>
+        <AccountEmpty title={empty.title} body={empty.body} />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {productIds.map((productId) => (
             <li key={productId}>
-              <Card className="flex items-center justify-between gap-3 p-4">
-                <Link href={`/p/${productId}`} className="font-body text-text-primary underline">
+              <article className="account-panel flex items-center justify-between gap-3 p-4 sm:p-5">
+                <Link
+                  href={`/p/${productId}`}
+                  className="font-body text-[13.5px] font-bold text-text-primary hover:text-primary"
+                >
                   {productId}
                 </Link>
                 <Button
@@ -91,7 +90,7 @@ export function WishlistView() {
                 >
                   Remove
                 </Button>
-              </Card>
+              </article>
             </li>
           ))}
         </ul>

@@ -32,6 +32,9 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
   },
+  permanentRedirect: (url: string) => {
+    throw new Error(`NEXT_REDIRECT:${url}`);
+  },
 }));
 
 vi.mock('@/server/catalogue', async (importOriginal) => ({
@@ -71,6 +74,11 @@ afterEach(() => {
 });
 
 describe('ListingView', () => {
+  const crumbs = [
+    { label: content.product.breadcrumbHome, href: '/' },
+    { label: 'Wooden toys' },
+  ];
+
   it('lists products matching the fixed category filter', async () => {
     const { ListingView } = await import('@/components/ListingView');
     const element = await ListingView({
@@ -78,6 +86,7 @@ describe('ListingView', () => {
       basePath: '/c/wooden',
       searchParams: {},
       fixedFilter: { categorySlugs: ['wooden'] },
+      crumbs,
     });
     render(element);
 
@@ -95,6 +104,7 @@ describe('ListingView', () => {
       basePath: '/c/wooden',
       searchParams: {},
       fixedFilter: { categorySlugs: ['wooden'] },
+      crumbs,
     });
     render(element);
 
@@ -109,6 +119,7 @@ describe('ListingView', () => {
       basePath: '/c/wooden',
       searchParams: { sort: 'price_desc' },
       fixedFilter: { categorySlugs: ['wooden'] },
+      crumbs,
     });
     render(element);
 
@@ -122,6 +133,7 @@ describe('ListingView', () => {
       basePath: '/c/wooden',
       searchParams: {},
       fixedFilter: { categorySlugs: ['wooden'] },
+      crumbs,
     });
     render(element);
 
@@ -176,7 +188,7 @@ describe('the age listing page', () => {
       searchParams: Promise.resolve({}),
     });
 
-    expect(metadata.title).toBe(band.label);
+    expect(metadata.title).toBe(`Ages ${band.label}`);
   });
 });
 
@@ -203,7 +215,18 @@ describe('the category listing page', () => {
     vi.doUnmock('@/server/catalogue');
   });
 
-  it('titles the all-products page with the configured section title', async () => {
+  it('redirects /c/all to /listing, keeping listing filters', async () => {
+    const { default: CategoryPage } = await import('@/app/c/[slug]/page');
+
+    await expect(
+      CategoryPage({
+        params: Promise.resolve({ slug: 'all' }),
+        searchParams: Promise.resolve({ sort: 'price_asc' }),
+      }),
+    ).rejects.toThrow('NEXT_REDIRECT:/listing?sort=price_asc');
+  });
+
+  it('titles the reserved all slug with the listing title while redirecting', async () => {
     const { generateMetadata } = await import('@/app/c/[slug]/page');
 
     const metadata = await generateMetadata({
@@ -211,7 +234,15 @@ describe('the category listing page', () => {
       searchParams: Promise.resolve({}),
     });
 
-    expect(metadata.title).toBe(content.home.categorySectionTitle);
+    expect(metadata.title).toBe(content.listing.title);
+  });
+});
+
+describe('the listing page', () => {
+  it('titles the page from store config', async () => {
+    const { generateMetadata } = await import('@/app/listing/page');
+
+    expect(generateMetadata().title).toBe(content.listing.title);
   });
 });
 

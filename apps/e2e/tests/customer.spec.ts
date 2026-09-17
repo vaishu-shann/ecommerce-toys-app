@@ -70,9 +70,13 @@ test('customer registers, orders, and submits payment', async ({ page }) => {
   // The quote loads and the total renders before the button enables.
   await expect(page.getByTestId('checkout-total')).toBeVisible({ timeout: 20_000 });
 
-  const placeOrder = page.getByRole('button', { name: /place order/iu });
-  await expect(placeOrder).toBeEnabled({ timeout: 20_000 });
-  await placeOrder.click();
+  const continueToPayment = page.getByRole('button', { name: /continue to payment/iu });
+  await expect(continueToPayment).toBeEnabled({ timeout: 20_000 });
+  await continueToPayment.click();
+  await expect(page.getByRole('heading', { name: /how would you like to pay/iu })).toBeVisible();
+  await page.getByRole('button', { name: /review order/iu }).click();
+  await expect(page.getByRole('heading', { name: /check and confirm/iu })).toBeVisible();
+  await page.getByRole('button', { name: /^pay /iu }).click();
 
   // Lands on the order confirmation at /orders/<id>.
   await page.waitForURL(/\/orders\//u, { timeout: 30_000 });

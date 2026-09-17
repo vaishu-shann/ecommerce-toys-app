@@ -158,12 +158,17 @@ export default defineStoreConfig({
         headline: 'Replace this headline',
         subcopy: 'Replace this supporting sentence with something about your store.',
         primaryCta: { label: 'Shop by age', href: '/age/2-4' },
-        secondaryCta: { label: 'Browse everything', href: '/c/all' },
+        secondaryCta: { label: 'Browse everything', href: '/listing' },
       },
       promo: {
         headline: 'Replace this promotion',
         subcopy: 'Replace this promotional detail.',
-        cta: { label: 'See more', href: '/c/all' },
+        cta: { label: 'See more', href: '/listing' },
+      },
+      sale: {
+        headline: 'Replace this sale headline',
+        subcopy: 'Replace this sale detail.',
+        cta: { label: 'Shop the sale', href: '/listing' },
       },
       trustBadges: [
         { title: 'Replace badge one', description: 'Replace this description.' },
@@ -199,6 +204,10 @@ export default defineStoreConfig({
         submitLabel: 'Submit',
         pendingNotice: 'Thank you. Your review will be published after review.',
       },
+    },
+
+    listing: {
+      title: 'All products',
     },
 
     // Different bands from ROMP, so nothing can assume ROMP's taxonomy.
@@ -241,7 +250,7 @@ export default defineStoreConfig({
         {
           title: 'Shop',
           links: [
-            { label: 'All products', href: '/c/all' },
+            { label: 'All products', href: '/listing' },
             { label: 'Category one', href: '/c/category-one' },
           ],
         },
