@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import axe from 'axe-core';
 import { describe, expect, it } from 'vitest';
 
-import { brand, content, contact, features, theme } from '@/lib/store';
+import { brand, content, contact, features } from '@/lib/store';
 
 import { SiteFooter } from './SiteFooter';
 import { SiteHeader } from './SiteHeader';
@@ -75,7 +75,9 @@ describe('SiteHeader', () => {
     render(<SiteHeader />);
 
     expect(screen.queryByRole('navigation', { name: 'Categories' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: content.home.hero.primaryCta.label })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: content.home.hero.primaryCta.label }),
+    ).not.toBeInTheDocument();
     for (const category of content.categories.filter((item) => item.showInNav)) {
       expect(screen.queryByRole('link', { name: category.name })).not.toBeInTheDocument();
     }
@@ -94,9 +96,7 @@ describe('SiteHeader', () => {
     for (const name of ['Your account', 'Your cart', 'Notifications']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
-    if (theme.modes !== undefined) {
-      expect(screen.getByRole('button', { name: /switch theme/iu })).toBeInTheDocument();
-    }
+    expect(screen.getByRole('button', { name: /switch theme/iu })).toBeInTheDocument();
   });
 
   it('orders the account cluster as bell, wishlist, cart, profile, then colour mode', () => {
@@ -113,7 +113,7 @@ describe('SiteHeader', () => {
       ...(features.wishlist ? ['Saved toys'] : []),
       'Your cart',
       'Your account',
-      ...(theme.modes !== undefined ? ['Switch theme'] : []),
+      'Switch theme',
     ];
     expect(names).toEqual(expected);
   });
